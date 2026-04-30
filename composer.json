@@ -1,6 +1,5 @@
 {
     "name": "noeka/svgraph",
-    "version": "0.1.0",
     "description": "JavaScript-free SVG chart rendering for PHP. Sparkline, line/area, bar, pie/donut, and progress charts as static markup.",
     "type": "library",
     "license": "MIT",
