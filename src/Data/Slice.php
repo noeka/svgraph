@@ -10,6 +10,7 @@ final readonly class Slice
         public string $label,
         public float $value,
         public ?string $color = null,
+        public ?Link $link = null,
     ) {}
 
     /**
@@ -49,7 +50,8 @@ final readonly class Slice
                     continue;
                 }
                 $color = isset($value[2]) ? self::toString($value[2]) : null;
-                $slices[] = new self($label, $val, $color);
+                $link = isset($value[3]) && $value[3] instanceof Link ? $value[3] : null;
+                $slices[] = new self($label, $val, $color, $link);
                 continue;
             }
             $val = self::toFloat($value);

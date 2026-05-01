@@ -218,11 +218,38 @@ final class Wrapper
         $reducedMotion = '@media (prefers-reduced-motion:reduce){'
             . '.svgraph--pie path[class^="series-"]:hover,'
             . '.svgraph--pie path[class^="series-"]:focus-visible,'
+            . '.svgraph--pie a.svgraph-linked:focus-visible path[class^="series-"],'
             . '.svgraph--donut path[class^="series-"]:hover,'
-            . '.svgraph--donut path[class^="series-"]:focus-visible{'
+            . '.svgraph--donut path[class^="series-"]:focus-visible,'
+            . '.svgraph--donut a.svgraph-linked:focus-visible path[class^="series-"]{'
             . 'transform:none;}}';
 
-        return $direct . $lineMarkers . $piePop . $reducedMotion;
+        // Linked elements: cursor + keyboard-focus highlight rules.
+        // :hover on the inner element is already handled by the rules above
+        // (the inner rect/path/etc. is still directly under the pointer).
+        // Only :focus-visible needs extra rules because the <a> receives focus,
+        // not the inner element (which has no tabindex when wrapped).
+        $linked = '.svgraph a.svgraph-linked{cursor:pointer;}'
+            . '.svgraph a.svgraph-linked:focus-visible rect[class^="series-"]{'
+            . 'filter:brightness(var(--svgraph-hover-brightness,1.2));'
+            . 'stroke:currentColor;'
+            . 'stroke-width:var(--svgraph-hover-stroke-width,1.5);'
+            . 'paint-order:stroke fill;'
+            . 'outline:none;}'
+            . '.svgraph a.svgraph-linked:focus-visible circle[class^="series-"],'
+            . '.svgraph a.svgraph-linked:focus-visible path[class^="series-"]{'
+            . 'filter:brightness(var(--svgraph-hover-brightness,1.2));'
+            . 'outline:none;}'
+            . '.svgraph a.svgraph-linked:focus-visible g[class^="series-"]>ellipse:first-child{'
+            . 'filter:brightness(var(--svgraph-hover-brightness,1.2));}'
+            . '.svgraph--pie a.svgraph-linked:focus-visible path[class^="series-"],'
+            . '.svgraph--donut a.svgraph-linked:focus-visible path[class^="series-"]{'
+            . 'transform:translate('
+            . 'calc(var(--svgraph-pie-pop-distance,3px)*var(--pop-x,0)),'
+            . 'calc(var(--svgraph-pie-pop-distance,3px)*var(--pop-y,0))'
+            . ');}';
+
+        return $direct . $lineMarkers . $piePop . $reducedMotion . $linked;
     }
 
     private function buildTooltipStyle(): string

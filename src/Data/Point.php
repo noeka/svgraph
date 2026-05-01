@@ -9,5 +9,6 @@ final readonly class Point
     public function __construct(
         public float $value,
         public ?string $label = null,
+        public ?Link $link = null,
     ) {}
 }
