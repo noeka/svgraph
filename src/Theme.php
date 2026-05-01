@@ -25,6 +25,13 @@ final readonly class Theme
      * @param string $tooltipBackground  `--svgraph-tt-bg`     Tooltip panel background color.
      * @param string $tooltipTextColor   `--svgraph-tt-fg`     Tooltip text color.
      * @param string $tooltipBorderRadius `--svgraph-tt-r`     Tooltip corner radius (CSS length).
+     *
+     * Hover/focus highlight theming tokens — pure CSS, overridable via custom
+     * properties on the `.svgraph` wrapper:
+     *
+     * @param string $hoverBrightness   `--svgraph-hover-brightness`   CSS `<number>` passed to brightness(). Default 1.2.
+     * @param string $hoverStrokeWidth  `--svgraph-hover-stroke-width` SVG stroke-width added on hover. Default 1.5.
+     * @param string $piePopDistance    `--svgraph-pie-pop-distance`   CSS `<length>` (e.g. "3px") pie slices pop outward by on hover. Default "3px".
      */
     public function __construct(
         public array $palette,
@@ -40,6 +47,9 @@ final readonly class Theme
         public string $tooltipBackground = '#1f2937',
         public string $tooltipTextColor = '#f9fafb',
         public string $tooltipBorderRadius = '0.25rem',
+        public string $hoverBrightness = '1.2',
+        public string $hoverStrokeWidth = '1.5',
+        public string $piePopDistance = '3px',
     ) {}
 
     public static function default(): self
@@ -92,6 +102,9 @@ final readonly class Theme
             tooltipBackground: $this->tooltipBackground,
             tooltipTextColor: $this->tooltipTextColor,
             tooltipBorderRadius: $this->tooltipBorderRadius,
+            hoverBrightness: $this->hoverBrightness,
+            hoverStrokeWidth: $this->hoverStrokeWidth,
+            piePopDistance: $this->piePopDistance,
         );
     }
 
@@ -121,6 +134,41 @@ final readonly class Theme
             tooltipBackground: $background ?? $this->tooltipBackground,
             tooltipTextColor: $textColor ?? $this->tooltipTextColor,
             tooltipBorderRadius: $borderRadius ?? $this->tooltipBorderRadius,
+            hoverBrightness: $this->hoverBrightness,
+            hoverStrokeWidth: $this->hoverStrokeWidth,
+            piePopDistance: $this->piePopDistance,
+        );
+    }
+
+    /**
+     * Return a copy with different hover/focus highlight styling.
+     *
+     * The values are emitted as CSS custom properties on the wrapper element:
+     *   --svgraph-hover-brightness, --svgraph-hover-stroke-width, --svgraph-pie-pop-distance
+     * You can also set these properties directly in your own CSS.
+     */
+    public function withHover(
+        ?string $brightness = null,
+        ?string $strokeWidth = null,
+        ?string $piePopDistance = null,
+    ): self {
+        return new self(
+            palette: $this->palette,
+            stroke: $this->stroke,
+            strokeWidth: $this->strokeWidth,
+            fill: $this->fill,
+            textColor: $this->textColor,
+            fontFamily: $this->fontFamily,
+            fontSize: $this->fontSize,
+            gridColor: $this->gridColor,
+            axisColor: $this->axisColor,
+            trackColor: $this->trackColor,
+            tooltipBackground: $this->tooltipBackground,
+            tooltipTextColor: $this->tooltipTextColor,
+            tooltipBorderRadius: $this->tooltipBorderRadius,
+            hoverBrightness: $brightness ?? $this->hoverBrightness,
+            hoverStrokeWidth: $strokeWidth ?? $this->hoverStrokeWidth,
+            piePopDistance: $piePopDistance ?? $this->piePopDistance,
         );
     }
 

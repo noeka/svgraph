@@ -99,6 +99,8 @@ class PieChart extends AbstractChart
 
         $chartId = $this->chartId();
 
+        $wrapper->markHasSeriesElements();
+
         if ($this->thickness === 0.0 && count($this->slices) === 1) {
             $only = $this->slices[0];
             $color = $only->color ?? $this->theme->colorAt(0);
@@ -106,6 +108,7 @@ class PieChart extends AbstractChart
             $tipText = $this->tooltip($only->label, $only->value);
             $wrapper->add(Tag::make('circle', [
                 'id' => $id,
+                'class' => 'series-0',
                 'cx' => Tag::formatFloat($cx),
                 'cy' => Tag::formatFloat($cy),
                 'r' => Tag::formatFloat($outerRadius),
@@ -141,8 +144,15 @@ class PieChart extends AbstractChart
             $d = Path::arc($cx, $cy, $outerRadius, $innerRadius, $start, $end);
             $id = "{$chartId}-pt-{$i}";
             $tipText = $this->tooltip($slice->label, $value);
+            // Radial unit vector for the slice centroid — used by CSS to pop the
+            // slice outward via translate(calc(dist * --pop-x), calc(dist * --pop-y)).
+            $midAngle = ($start + $end) / 2;
+            $popX = round(sin($midAngle), 4);
+            $popY = round(-cos($midAngle), 4);
             $wrapper->add(Tag::make('path', [
                 'id' => $id,
+                'class' => "series-{$i}",
+                'style' => "--pop-x:{$popX};--pop-y:{$popY};",
                 'd' => $d,
                 'fill' => $color,
                 'tabindex' => '0',

@@ -31,6 +31,8 @@ final class Wrapper
 
     private ?string $userClass = null;
 
+    private bool $hasSeriesElements = false;
+
     public function __construct(
         private readonly Viewport $viewport,
         private readonly float $aspectRatio,
@@ -62,6 +64,12 @@ final class Wrapper
         return $this;
     }
 
+    public function markHasSeriesElements(): self
+    {
+        $this->hasSeriesElements = true;
+        return $this;
+    }
+
     public function render(): string
     {
         $paddingBottom = (1.0 / max($this->aspectRatio, 0.01)) * 100.0;
@@ -81,6 +89,15 @@ final class Wrapper
             $fg = Css::color($this->theme->tooltipTextColor) ?? '#f9fafb';
             $r = Css::length($this->theme->tooltipBorderRadius) ?? '0.25rem';
             $wrapperStyle .= "--svgraph-tt-bg:{$bg};--svgraph-tt-fg:{$fg};--svgraph-tt-r:{$r};";
+        }
+
+        if ($this->hasSeriesElements) {
+            $brightness = Css::number($this->theme->hoverBrightness) ?? '1.2';
+            $strokeW = Css::number($this->theme->hoverStrokeWidth) ?? '1.5';
+            $popDist = Css::lengthWithUnit($this->theme->piePopDistance) ?? '3px';
+            $wrapperStyle .= "--svgraph-hover-brightness:{$brightness};"
+                . "--svgraph-hover-stroke-width:{$strokeW};"
+                . "--svgraph-pie-pop-distance:{$popDist};";
         }
 
         $svgStyle = 'position:absolute;inset:0;width:100%;height:100%;display:block;overflow:visible;';
@@ -106,8 +123,8 @@ final class Wrapper
             'style' => $wrapperStyle,
         ]);
 
-        if ($this->tooltips !== []) {
-            $div->appendRaw($this->buildTooltipStyle());
+        if ($this->tooltips !== [] || $this->hasSeriesElements) {
+            $div->appendRaw($this->buildStyle());
         }
 
         $div->append($svg);
@@ -147,6 +164,67 @@ final class Wrapper
         return (string) $div;
     }
 
+    private function buildStyle(): string
+    {
+        $css = '';
+
+        if ($this->hasSeriesElements) {
+            $css .= $this->buildHoverStyle();
+        }
+
+        if ($this->tooltips !== []) {
+            $css .= $this->buildTooltipStyle();
+        }
+
+        return "<style>{$css}</style>";
+    }
+
+    private function buildHoverStyle(): string
+    {
+        // Bars and pie circles/paths: direct interactive elements with series class.
+        $direct = '.svgraph rect[class^="series-"]:hover,'
+            . '.svgraph rect[class^="series-"]:focus-visible{'
+            . 'filter:brightness(var(--svgraph-hover-brightness,1.2));'
+            . 'stroke:currentColor;'
+            . 'stroke-width:var(--svgraph-hover-stroke-width,1.5);'
+            . 'paint-order:stroke fill;'
+            . 'outline:none;}'
+            . '.svgraph circle[class^="series-"]:hover,'
+            . '.svgraph circle[class^="series-"]:focus-visible,'
+            . '.svgraph path[class^="series-"]:hover,'
+            . '.svgraph path[class^="series-"]:focus-visible{'
+            . 'filter:brightness(var(--svgraph-hover-brightness,1.2));'
+            . 'outline:none;}';
+
+        // Line markers: visual ellipse is first child of a <g class="series-*">.
+        // :hover fires on the group when over the (transparent) hit-target child;
+        // :focus-within fires when the hit-target child receives keyboard focus.
+        $lineMarkers = '.svgraph g[class^="series-"]:hover>ellipse:first-child,'
+            . '.svgraph g[class^="series-"]:focus-within>ellipse:first-child{'
+            . 'filter:brightness(var(--svgraph-hover-brightness,1.2));}';
+
+        // Pie/donut slice pop: per-slice --pop-x/--pop-y unit vectors are set as
+        // inline CSS custom properties by the PHP renderer.
+        $piePop = '.svgraph--pie path[class^="series-"]:hover,'
+            . '.svgraph--pie path[class^="series-"]:focus-visible,'
+            . '.svgraph--donut path[class^="series-"]:hover,'
+            . '.svgraph--donut path[class^="series-"]:focus-visible{'
+            . 'transform:translate('
+            . 'calc(var(--svgraph-pie-pop-distance,3px)*var(--pop-x,0)),'
+            . 'calc(var(--svgraph-pie-pop-distance,3px)*var(--pop-y,0))'
+            . ');}';
+
+        // Under reduced motion: suppress the translate pop but keep colour change.
+        $reducedMotion = '@media (prefers-reduced-motion:reduce){'
+            . '.svgraph--pie path[class^="series-"]:hover,'
+            . '.svgraph--pie path[class^="series-"]:focus-visible,'
+            . '.svgraph--donut path[class^="series-"]:hover,'
+            . '.svgraph--donut path[class^="series-"]:focus-visible{'
+            . 'transform:none;}}';
+
+        return $direct . $lineMarkers . $piePop . $reducedMotion;
+    }
+
     private function buildTooltipStyle(): string
     {
         $base = '.svgraph-tooltip{'
@@ -165,6 +243,6 @@ final class Wrapper
                 . ".svgraph:has(#{$id}:focus-visible) [data-for=\"{$id}\"]{display:block;}";
         }
 
-        return "<style>{$base}@supports selector(:has(a)){{$rules}}</style>";
+        return $base . '@supports selector(:has(a)){' . $rules . '}';
     }
 }

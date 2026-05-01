@@ -16,7 +16,9 @@ final class Css
 {
     private const COLOR = '/\A(?:#[0-9a-f]{3,8}|rgba?\([0-9.,\s%\-]{1,40}\)|hsla?\([0-9.,\s%\-]{1,40}\)|[a-z]{3,20})\z/i';
     private const LENGTH = '/\A[0-9]+(?:\.[0-9]+)?(?:px|em|rem|%|pt|vh|vw|ex|ch)?\z/';
+    private const LENGTH_WITH_UNIT = '/\A[0-9]+(?:\.[0-9]+)?(?:px|em|rem|%|pt|vh|vw|ex|ch)\z/';
     private const FONT_FAMILY = '/\A[A-Za-z0-9 ,\-\'"]{1,80}\z/';
+    private const NUMBER = '/\A[0-9]+(?:\.[0-9]+)?\z/';
 
     public static function color(?string $value): ?string
     {
@@ -31,5 +33,17 @@ final class Css
     public static function fontFamily(?string $value): ?string
     {
         return $value !== null && preg_match(self::FONT_FAMILY, $value) === 1 ? $value : null;
+    }
+
+    /** Validates a non-negative CSS `<number>` (no unit), e.g. "1.2" or "2". */
+    public static function number(?string $value): ?string
+    {
+        return $value !== null && preg_match(self::NUMBER, $value) === 1 ? $value : null;
+    }
+
+    /** Validates a CSS `<length>` that must include a unit, e.g. "3px", "0.5rem". */
+    public static function lengthWithUnit(?string $value): ?string
+    {
+        return $value !== null && preg_match(self::LENGTH_WITH_UNIT, $value) === 1 ? $value : null;
     }
 }

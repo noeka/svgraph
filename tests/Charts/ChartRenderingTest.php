@@ -504,4 +504,125 @@ final class ChartRenderingTest extends TestCase
         self::assertStringNotContainsString('class="svgraph-tooltip"', $svg);
         self::assertStringNotContainsString('<style>', $svg);
     }
+
+    // ── Hover/focus highlight tests (issue #6) ────────────────────────────────
+
+    public function test_bar_rects_have_series_class(): void
+    {
+        $svg = Chart::bar(['Jan' => 10, 'Feb' => 20, 'Mar' => 5])->render();
+
+        // All bars in a single-colour chart belong to series-0.
+        self::assertSame(3, substr_count($svg, 'class="series-0"'));
+    }
+
+    public function test_rainbow_bars_get_per_bar_series_class(): void
+    {
+        $svg = Chart::bar(['A' => 1, 'B' => 2, 'C' => 3])->rainbow()->render();
+
+        self::assertStringContainsString('class="series-0"', $svg);
+        self::assertStringContainsString('class="series-1"', $svg);
+        self::assertStringContainsString('class="series-2"', $svg);
+    }
+
+    public function test_pie_slices_have_per_slice_series_class(): void
+    {
+        $svg = Chart::pie(['A' => 50, 'B' => 30, 'C' => 20])->render();
+
+        self::assertStringContainsString('class="series-0"', $svg);
+        self::assertStringContainsString('class="series-1"', $svg);
+        self::assertStringContainsString('class="series-2"', $svg);
+    }
+
+    public function test_pie_single_slice_has_series_0_class(): void
+    {
+        $svg = Chart::pie(['Only' => 100])->render();
+
+        self::assertStringContainsString('class="series-0"', $svg);
+    }
+
+    public function test_pie_slices_have_pop_vector_inline_vars(): void
+    {
+        $svg = Chart::pie(['A' => 1, 'B' => 1])->render();
+
+        // Each slice path must carry --pop-x and --pop-y in its style attribute.
+        self::assertMatchesRegularExpression('/style="--pop-x:[^"]+--pop-y:[^"]+"/', $svg);
+    }
+
+    public function test_line_marker_groups_have_series_class(): void
+    {
+        $svg = Chart::line([10, 20, 30])->points()->render();
+
+        self::assertSame(3, substr_count($svg, 'class="series-0"'));
+        // Ellipses must be nested inside <g> elements.
+        self::assertMatchesRegularExpression('/<g class="series-0">.*<ellipse/s', $svg);
+    }
+
+    public function test_bar_chart_emits_hover_style_rules(): void
+    {
+        $svg = Chart::bar(['A' => 1])->render();
+
+        self::assertStringContainsString('brightness(var(--svgraph-hover-brightness', $svg);
+        self::assertStringContainsString('--svgraph-hover-stroke-width', $svg);
+    }
+
+    public function test_pie_chart_emits_pop_style_rules(): void
+    {
+        $svg = Chart::pie(['A' => 1, 'B' => 1])->render();
+
+        self::assertStringContainsString('--svgraph-pie-pop-distance', $svg);
+        self::assertStringContainsString('--pop-x', $svg);
+        self::assertStringContainsString('--pop-y', $svg);
+    }
+
+    public function test_hover_style_honours_prefers_reduced_motion(): void
+    {
+        $svg = Chart::pie(['A' => 1, 'B' => 1])->render();
+
+        self::assertStringContainsString('prefers-reduced-motion', $svg);
+        // The reduced-motion block must suppress the transform.
+        self::assertMatchesRegularExpression('/prefers-reduced-motion[^}]+\{[^}]*transform:none/', $svg);
+    }
+
+    public function test_hover_css_custom_properties_on_wrapper(): void
+    {
+        $svg = Chart::bar(['A' => 1])->render();
+
+        self::assertStringContainsString('--svgraph-hover-brightness:', $svg);
+        self::assertStringContainsString('--svgraph-hover-stroke-width:', $svg);
+    }
+
+    public function test_with_hover_overrides_custom_properties(): void
+    {
+        $svg = Chart::bar(['A' => 1])
+            ->theme(Theme::default()->withHover('1.5', '2', '5px'))
+            ->render();
+
+        self::assertStringContainsString('--svgraph-hover-brightness:1.5', $svg);
+        self::assertStringContainsString('--svgraph-hover-stroke-width:2', $svg);
+        self::assertStringContainsString('--svgraph-pie-pop-distance:5px', $svg);
+    }
+
+    public function test_line_without_points_emits_no_hover_style(): void
+    {
+        $svg = Chart::line([10, 20, 30])->render();
+
+        // No series elements → no <style> block at all.
+        self::assertStringNotContainsString('<style>', $svg);
+    }
+
+    public function test_horizontal_bar_rects_have_series_class(): void
+    {
+        $svg = Chart::bar(['A' => 5, 'B' => 10])->horizontal()->render();
+
+        self::assertSame(2, substr_count($svg, 'class="series-0"'));
+    }
+
+    public function test_donut_slices_have_series_class_and_pop_vars(): void
+    {
+        $svg = Chart::donut(['X' => 3, 'Y' => 1])->render();
+
+        self::assertStringContainsString('class="series-0"', $svg);
+        self::assertStringContainsString('class="series-1"', $svg);
+        self::assertStringContainsString('--pop-x:', $svg);
+    }
 }
