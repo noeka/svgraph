@@ -25,6 +25,10 @@ final readonly class Series implements \Countable
      * - ['Mon' => 10, 'Tue' => 24]         → label => value map
      * - [Point, Point]                     → already Points
      *
+     * Non-finite values (NaN, ±Infinity) are silently dropped — they would
+     * otherwise propagate through Scale calculations and produce a chart
+     * full of zeros.
+     *
      * @param iterable<mixed> $input
      */
     public static function from(iterable $input): self
@@ -32,19 +36,25 @@ final readonly class Series implements \Countable
         $points = [];
         foreach ($input as $key => $value) {
             if ($value instanceof Point) {
-                $points[] = $value;
+                if (is_finite($value->value)) {
+                    $points[] = $value;
+                }
                 continue;
             }
             if (is_array($value) && count($value) === 2) {
                 [$label, $val] = array_values($value);
-                $points[] = new Point((float) $val, $label === null ? null : (string) $label);
+                $val = (float) $val;
+                if (!is_finite($val)) {
+                    continue;
+                }
+                $points[] = new Point($val, $label === null ? null : (string) $label);
                 continue;
             }
-            if (is_int($key)) {
-                $points[] = new Point((float) $value);
-            } else {
-                $points[] = new Point((float) $value, (string) $key);
+            $val = (float) $value;
+            if (!is_finite($val)) {
+                continue;
             }
+            $points[] = new Point($val, is_int($key) ? null : (string) $key);
         }
         return new self($points);
     }

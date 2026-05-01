@@ -67,4 +67,28 @@ final class SeriesTest extends TestCase
     {
         self::assertFalse(Series::from([10, 20, 30])->hasLabels());
     }
+
+    public function test_from_drops_non_finite_values(): void
+    {
+        $series = Series::from([10, NAN, 20, INF, -INF, 30]);
+        self::assertSame([10.0, 20.0, 30.0], $series->values());
+    }
+
+    public function test_from_drops_non_finite_in_tuples_and_assoc(): void
+    {
+        $tuples = Series::from([['A', 1], ['B', NAN], ['C', 3]]);
+        self::assertSame([1.0, 3.0], $tuples->values());
+        self::assertSame(['A', 'C'], $tuples->labels());
+
+        $assoc = Series::from(['A' => 1, 'B' => INF, 'C' => 3]);
+        self::assertSame([1.0, 3.0], $assoc->values());
+        self::assertSame(['A', 'C'], $assoc->labels());
+    }
+
+    public function test_from_drops_non_finite_point_objects(): void
+    {
+        $series = Series::from([new Point(5.0, 'A'), new Point(NAN, 'B'), new Point(7.0, 'C')]);
+        self::assertSame([5.0, 7.0], $series->values());
+        self::assertSame(['A', 'C'], $series->labels());
+    }
 }
