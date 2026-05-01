@@ -85,6 +85,14 @@ final class PathTest extends TestCase
         self::assertGreaterThan(1, substr_count($d, 'A'));
     }
 
+    public function test_arc_full_donut_ring_includes_inner_circle(): void
+    {
+        $d = Path::arc(50.0, 50.0, 40.0, 20.0, 0.0, 2 * M_PI);
+        // The inner circle uses the inner radius, the outer uses the outer radius.
+        self::assertStringContainsString('A40,40', $d);
+        self::assertStringContainsString('A20,20', $d);
+    }
+
     public function test_arc_large_arc_flag_set_for_sweep_over_pi(): void
     {
         $d = Path::arc(50.0, 50.0, 40.0, 0.0, 0.0, M_PI * 1.5);
