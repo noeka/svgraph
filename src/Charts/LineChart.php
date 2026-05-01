@@ -187,11 +187,16 @@ class LineChart extends AbstractChart
             $rx = $r / max(0.01, $this->aspectRatio);
             $hitR = max(4.0, $r * 2);
             $hitRx = $hitR / max(0.01, $this->aspectRatio);
+            $wrapper->markHasSeriesElements();
             foreach ($points as $i => [$x, $y]) {
                 $p = $this->series->points[$i];
                 $id = "{$chartId}-pt-{$i}";
                 $tipText = $this->tooltip($p->label, $p->value);
-                $wrapper->add(Tag::make('ellipse', [
+                // Wrap visual marker + transparent hit target in a <g> so that
+                // CSS :hover/:focus-within on the group can highlight the visual
+                // ellipse even though the (larger) hit target intercepts events.
+                $group = Tag::make('g', ['class' => 'series-0']);
+                $group->append(Tag::make('ellipse', [
                     'cx' => Tag::formatFloat($x),
                     'cy' => Tag::formatFloat($y),
                     'rx' => Tag::formatFloat($rx),
@@ -199,7 +204,7 @@ class LineChart extends AbstractChart
                     'fill' => $stroke,
                 ])->append(Tag::make('title')->append($tipText)));
                 // Transparent hit target — larger than the visual dot for easier hover/focus.
-                $wrapper->add(Tag::make('ellipse', [
+                $group->append(Tag::make('ellipse', [
                     'id' => $id,
                     'cx' => Tag::formatFloat($x),
                     'cy' => Tag::formatFloat($y),
@@ -208,6 +213,7 @@ class LineChart extends AbstractChart
                     'fill' => 'transparent',
                     'tabindex' => '0',
                 ])->append(Tag::make('title')->append($tipText)));
+                $wrapper->add($group);
                 $wrapper->tooltip(new Tooltip(
                     id: $id,
                     text: Tag::escapeText($tipText),

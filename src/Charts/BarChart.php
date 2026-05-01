@@ -151,6 +151,7 @@ class BarChart extends AbstractChart
 
         $chartId = $this->chartId();
         $baseY = $yScale->map(0.0);
+        $wrapper->markHasSeriesElements();
         foreach ($this->series->points as $i => $point) {
             $value = $point->value;
             $x = $viewport->plotLeft() + $i * $slotWidth + $barOffset;
@@ -158,9 +159,11 @@ class BarChart extends AbstractChart
             $top = min($baseY, $valueY);
             $height = abs($valueY - $baseY);
             $color = $this->useColorPerBar ? $this->theme->colorAt($i) : ($this->color ?? $this->theme->fill);
+            $seriesIndex = $this->useColorPerBar ? $i : 0;
             $id = "{$chartId}-pt-{$i}";
             $attrs = [
                 'id' => $id,
+                'class' => "series-{$seriesIndex}",
                 'x' => Tag::formatFloat($x),
                 'y' => Tag::formatFloat($top),
                 'width' => Tag::formatFloat($barWidth),
@@ -271,6 +274,7 @@ class BarChart extends AbstractChart
 
         $chartId = $this->chartId();
         $baseX = $xScale->map(0.0);
+        $wrapper->markHasSeriesElements();
         foreach ($this->series->points as $i => $point) {
             $value = $point->value;
             $y = $viewport->plotTop() + $i * $slotHeight + $barOffset;
@@ -278,9 +282,11 @@ class BarChart extends AbstractChart
             $left = min($baseX, $valueX);
             $width = abs($valueX - $baseX);
             $color = $this->useColorPerBar ? $this->theme->colorAt($i) : ($this->color ?? $this->theme->fill);
+            $seriesIndex = $this->useColorPerBar ? $i : 0;
             $id = "{$chartId}-pt-{$i}";
             $attrs = [
                 'id' => $id,
+                'class' => "series-{$seriesIndex}",
                 'x' => Tag::formatFloat($left),
                 'y' => Tag::formatFloat($y),
                 'width' => Tag::formatFloat($width),
