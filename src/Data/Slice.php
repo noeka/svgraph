@@ -43,21 +43,31 @@ final readonly class Slice
                         'Slice tuple must contain at least [label, value]; got ' . count($value) . ' element(s).',
                     );
                 }
-                $label = (string) ($value[0] ?? '');
-                $val = (float) ($value[1] ?? 0);
+                $label = self::toString($value[0] ?? '');
+                $val = self::toFloat($value[1] ?? 0);
                 if (!is_finite($val)) {
                     continue;
                 }
-                $color = isset($value[2]) ? (string) $value[2] : null;
+                $color = isset($value[2]) ? self::toString($value[2]) : null;
                 $slices[] = new self($label, $val, $color);
                 continue;
             }
-            $val = (float) $value;
+            $val = self::toFloat($value);
             if (!is_finite($val)) {
                 continue;
             }
-            $slices[] = new self((string) $key, $val);
+            $slices[] = new self(self::toString($key), $val);
         }
         return $slices;
+    }
+
+    private static function toFloat(mixed $v): float
+    {
+        return is_numeric($v) ? (float) $v : NAN;
+    }
+
+    private static function toString(mixed $v): string
+    {
+        return is_scalar($v) ? (string) $v : '';
     }
 }

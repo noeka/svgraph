@@ -76,4 +76,57 @@ final class SliceTest extends TestCase
         $this->expectException(\InvalidArgumentException::class);
         Slice::listFrom([[]]);
     }
+
+    public function test_list_from_coerces_numeric_strings(): void
+    {
+        $slices = Slice::listFrom([
+            ['A', '12.5'],
+            ['B', '7'],
+        ]);
+        self::assertCount(2, $slices);
+        self::assertSame(12.5, $slices[0]->value);
+        self::assertSame(7.0, $slices[1]->value);
+    }
+
+    public function test_list_from_drops_non_numeric_tuple_values(): void
+    {
+        $slices = Slice::listFrom([
+            ['A', 10],
+            ['B', 'not-a-number'],
+            ['C', new \stdClass()],
+            ['D', 40],
+        ]);
+        self::assertCount(2, $slices);
+        self::assertSame('A', $slices[0]->label);
+        self::assertSame('D', $slices[1]->label);
+    }
+
+    public function test_list_from_drops_non_numeric_assoc_values(): void
+    {
+        $slices = Slice::listFrom([
+            'A' => 10,
+            'B' => 'oops',
+            'C' => 30,
+        ]);
+        self::assertCount(2, $slices);
+        self::assertSame('A', $slices[0]->label);
+        self::assertSame('C', $slices[1]->label);
+    }
+
+    public function test_list_from_coerces_non_scalar_color_to_empty(): void
+    {
+        $slices = Slice::listFrom([
+            ['A', 10, ['nested']],
+        ]);
+        self::assertSame('', $slices[0]->color);
+    }
+
+    public function test_list_from_coerces_non_scalar_label_to_empty(): void
+    {
+        $slices = Slice::listFrom([
+            [new \stdClass(), 5],
+        ]);
+        self::assertSame('', $slices[0]->label);
+        self::assertSame(5.0, $slices[0]->value);
+    }
 }

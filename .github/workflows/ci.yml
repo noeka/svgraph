@@ -34,4 +34,16 @@ jobs:
           composer cs
 
       - name: Tests with coverage
-        run: vendor/bin/phpunit --coverage-text --coverage-filter=src
+        run: vendor/bin/phpunit --coverage-text --coverage-filter=src --coverage-clover=coverage.xml
+
+      - name: Enforce 90% line coverage
+        run: |
+          php -r '
+            $xml = simplexml_load_file("coverage.xml");
+            $m = $xml->project->metrics;
+            $elements = (int) $m["elements"];
+            $covered = (int) $m["coveredelements"];
+            $pct = $elements > 0 ? ($covered / $elements) * 100 : 0;
+            printf("Coverage: %.2f%% (%d/%d elements)\n", $pct, $covered, $elements);
+            exit($pct >= 90.0 ? 0 : 1);
+          '

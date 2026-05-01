@@ -91,4 +91,44 @@ final class SeriesTest extends TestCase
         self::assertSame([5.0, 7.0], $series->values());
         self::assertSame(['A', 'C'], $series->labels());
     }
+
+    public function test_from_coerces_numeric_strings(): void
+    {
+        $series = Series::from(['10', '20.5', '30']);
+        self::assertSame([10.0, 20.5, 30.0], $series->values());
+    }
+
+    public function test_from_drops_non_numeric_scalar_values(): void
+    {
+        $series = Series::from([10, 'abc', 20, true, 30, null]);
+        self::assertSame([10.0, 20.0, 30.0], $series->values());
+    }
+
+    public function test_from_drops_non_scalar_tuple_values(): void
+    {
+        $series = Series::from([
+            ['A', 1],
+            ['B', new \stdClass()],
+            ['C', 3],
+        ]);
+        self::assertSame([1.0, 3.0], $series->values());
+        self::assertSame(['A', 'C'], $series->labels());
+    }
+
+    public function test_from_handles_non_scalar_tuple_label(): void
+    {
+        $series = Series::from([
+            [['nested'], 5],
+            [null, 7],
+        ]);
+        self::assertSame([5.0, 7.0], $series->values());
+        self::assertSame([null, null], $series->labels());
+    }
+
+    public function test_from_coerces_int_label_in_tuple_to_string(): void
+    {
+        $series = Series::from([[2024, 10], [2025, 20]]);
+        self::assertSame([10.0, 20.0], $series->values());
+        self::assertSame(['2024', '2025'], $series->labels());
+    }
 }
