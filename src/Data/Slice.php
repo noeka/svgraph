@@ -19,6 +19,11 @@ final readonly class Slice
      * - [['Stripe', 1240], ['PayPal', 432, '#10b981']]
      * - [Slice, Slice]
      *
+     * Non-finite values (NaN, ±Infinity) are silently dropped. Tuple inputs
+     * must have at least [label, value]; shorter arrays throw to surface
+     * the mistake at the point of construction rather than producing an
+     * empty-labelled zero slice.
+     *
      * @param iterable<mixed> $input
      * @return list<self>
      */
@@ -27,17 +32,31 @@ final readonly class Slice
         $slices = [];
         foreach ($input as $key => $value) {
             if ($value instanceof self) {
-                $slices[] = $value;
+                if (is_finite($value->value)) {
+                    $slices[] = $value;
+                }
                 continue;
             }
             if (is_array($value)) {
+                if (count($value) < 2) {
+                    throw new \InvalidArgumentException(
+                        'Slice tuple must contain at least [label, value]; got ' . count($value) . ' element(s).',
+                    );
+                }
                 $label = (string) ($value[0] ?? '');
                 $val = (float) ($value[1] ?? 0);
+                if (!is_finite($val)) {
+                    continue;
+                }
                 $color = isset($value[2]) ? (string) $value[2] : null;
                 $slices[] = new self($label, $val, $color);
                 continue;
             }
-            $slices[] = new self((string) $key, (float) $value);
+            $val = (float) $value;
+            if (!is_finite($val)) {
+                continue;
+            }
+            $slices[] = new self((string) $key, $val);
         }
         return $slices;
     }

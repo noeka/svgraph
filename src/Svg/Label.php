@@ -54,8 +54,9 @@ final readonly class Label
             $rules[] = "transform:translate({$tx},{$ty})";
         }
         $rules[] = 'white-space:nowrap';
-        if ($this->color !== null) {
-            $rules[] = 'color:' . $this->color;
+        $color = Css::color($this->color);
+        if ($color !== null) {
+            $rules[] = 'color:' . $color;
         }
 
         $span = Tag::make('span', ['style' => implode(';', $rules)]);

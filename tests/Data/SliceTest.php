@@ -37,4 +37,43 @@ final class SliceTest extends TestCase
         self::assertSame($s1, $result[0]);
         self::assertSame($s2, $result[1]);
     }
+
+    public function test_list_from_drops_non_finite_values(): void
+    {
+        $slices = Slice::listFrom([
+            ['A', 10],
+            ['B', NAN],
+            ['C', INF],
+            ['D', 40],
+        ]);
+        self::assertCount(2, $slices);
+        self::assertSame('A', $slices[0]->label);
+        self::assertSame('D', $slices[1]->label);
+    }
+
+    public function test_list_from_drops_non_finite_assoc_and_objects(): void
+    {
+        $slices = Slice::listFrom([
+            'A' => 10,
+            'B' => NAN,
+            new Slice('C', INF),
+            new Slice('D', 40.0),
+        ]);
+        self::assertCount(2, $slices);
+        self::assertSame('A', $slices[0]->label);
+        self::assertSame('D', $slices[1]->label);
+    }
+
+    public function test_list_from_throws_on_short_tuple(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('at least [label, value]');
+        Slice::listFrom([['Stripe']]);
+    }
+
+    public function test_list_from_throws_on_empty_tuple(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        Slice::listFrom([[]]);
+    }
 }

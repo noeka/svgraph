@@ -7,6 +7,7 @@ namespace Noeka\Svgraph\Charts;
 use Noeka\Svgraph\Data\Slice;
 use Noeka\Svgraph\Geometry\Path;
 use Noeka\Svgraph\Geometry\Viewport;
+use Noeka\Svgraph\Svg\Css;
 use Noeka\Svgraph\Svg\Label;
 use Noeka\Svgraph\Svg\Tag;
 use Noeka\Svgraph\Svg\Wrapper;
@@ -155,10 +156,11 @@ class PieChart extends AbstractChart
             $left = $col * $colWidth;
             $top = $legendTopPercent + $row * 6.0;
             $color = $slice->color ?? $this->theme->colorAt($i);
+            $swatchColor = Css::color($color) ?? 'currentColor';
 
             $swatch = '<span style="display:inline-block;width:0.5em;height:0.5em;'
                 . 'border-radius:0.125em;margin-right:0.4em;vertical-align:middle;'
-                . 'background:' . Tag::escapeAttr($color) . ';"></span>';
+                . 'background:' . $swatchColor . ';"></span>';
             $text = Tag::escapeText($slice->label);
             $wrapper->label(new Label(
                 text: $swatch . $text,

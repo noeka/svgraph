@@ -19,6 +19,11 @@ final readonly class Scale
         public bool $invert = false,
     ) {}
 
+    /**
+     * Build a scale, widening a degenerate (zero-width) domain by 1.0 so
+     * `map()` doesn't divide by zero. Callers that want explicit control
+     * should construct the scale directly.
+     */
     public static function linear(float $domainMin, float $domainMax, float $rangeStart, float $rangeEnd, bool $invert = false): self
     {
         if ($domainMin === $domainMax) {
