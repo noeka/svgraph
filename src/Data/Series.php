@@ -43,20 +43,33 @@ final readonly class Series implements \Countable
             }
             if (is_array($value) && count($value) === 2) {
                 [$label, $val] = array_values($value);
-                $val = (float) $val;
+                $val = self::toFloat($val);
                 if (!is_finite($val)) {
                     continue;
                 }
-                $points[] = new Point($val, $label === null ? null : (string) $label);
+                $points[] = new Point($val, self::toLabel($label));
                 continue;
             }
-            $val = (float) $value;
+            $val = self::toFloat($value);
             if (!is_finite($val)) {
                 continue;
             }
-            $points[] = new Point($val, is_int($key) ? null : (string) $key);
+            $points[] = new Point($val, is_string($key) ? $key : null);
         }
         return new self($points);
+    }
+
+    private static function toFloat(mixed $v): float
+    {
+        return is_numeric($v) ? (float) $v : NAN;
+    }
+
+    private static function toLabel(mixed $v): ?string
+    {
+        if ($v === null) {
+            return null;
+        }
+        return is_scalar($v) ? (string) $v : null;
     }
 
     public function count(): int
