@@ -16,9 +16,13 @@ abstract class AbstractChart implements \Stringable
 
     protected string $variantClass = 'chart';
 
+    private static int $nextId = 0;
+    private int $instanceId;
+
     public function __construct()
     {
         $this->theme = Theme::default();
+        $this->instanceId = ++self::$nextId;
     }
 
     public function theme(Theme $theme): static
@@ -64,5 +68,14 @@ abstract class AbstractChart implements \Stringable
     {
         $formatted = $this->formatNumber($value);
         return ($label !== null && $label !== '') ? "{$label}: {$formatted}" : $formatted;
+    }
+
+    /**
+     * Stable, unique-per-instance chart ID used to build SVG element IDs.
+     * Format: svgraph-{n} where n is a monotonically increasing integer.
+     */
+    protected function chartId(): string
+    {
+        return 'svgraph-' . $this->instanceId;
     }
 }

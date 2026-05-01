@@ -10,6 +10,7 @@ use Noeka\Svgraph\Geometry\Scale;
 use Noeka\Svgraph\Geometry\Viewport;
 use Noeka\Svgraph\Svg\Label;
 use Noeka\Svgraph\Svg\Tag;
+use Noeka\Svgraph\Svg\Tooltip;
 use Noeka\Svgraph\Svg\Wrapper;
 
 class LineChart extends AbstractChart
@@ -181,17 +182,38 @@ class LineChart extends AbstractChart
         ]));
 
         if ($this->showPoints) {
+            $chartId = $this->chartId();
             $r = $strokeWidth * 0.6;
             $rx = $r / max(0.01, $this->aspectRatio);
+            $hitR = max(4.0, $r * 2);
+            $hitRx = $hitR / max(0.01, $this->aspectRatio);
             foreach ($points as $i => [$x, $y]) {
                 $p = $this->series->points[$i];
+                $id = "{$chartId}-pt-{$i}";
+                $tipText = $this->tooltip($p->label, $p->value);
                 $wrapper->add(Tag::make('ellipse', [
                     'cx' => Tag::formatFloat($x),
                     'cy' => Tag::formatFloat($y),
                     'rx' => Tag::formatFloat($rx),
                     'ry' => Tag::formatFloat($r),
                     'fill' => $stroke,
-                ])->append(Tag::make('title')->append($this->tooltip($p->label, $p->value))));
+                ])->append(Tag::make('title')->append($tipText)));
+                // Transparent hit target — larger than the visual dot for easier hover/focus.
+                $wrapper->add(Tag::make('ellipse', [
+                    'id' => $id,
+                    'cx' => Tag::formatFloat($x),
+                    'cy' => Tag::formatFloat($y),
+                    'rx' => Tag::formatFloat($hitRx),
+                    'ry' => Tag::formatFloat($hitR),
+                    'fill' => 'transparent',
+                    'tabindex' => '0',
+                ])->append(Tag::make('title')->append($tipText)));
+                $wrapper->tooltip(new Tooltip(
+                    id: $id,
+                    text: Tag::escapeText($tipText),
+                    leftPct: $x / $viewport->width * 100,
+                    topPct: $y / $viewport->height * 100,
+                ));
             }
         }
 

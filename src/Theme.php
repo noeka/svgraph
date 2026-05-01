@@ -7,16 +7,24 @@ namespace Noeka\Svgraph;
 final readonly class Theme
 {
     /**
-     * @param list<string> $palette  Hex/CSS colors used in order for multi-series or partition charts.
-     * @param string       $stroke   Default stroke color for lines/axes.
+     * @param list<string> $palette          Hex/CSS colors used in order for multi-series or partition charts.
+     * @param string       $stroke           Default stroke color for lines/axes.
      * @param float        $strokeWidth
-     * @param string       $fill     Default fill color (e.g. for bars when no color specified).
+     * @param string       $fill             Default fill color (e.g. for bars when no color specified).
      * @param string       $textColor
      * @param string       $fontFamily
-     * @param string       $fontSize CSS length, e.g. "0.75rem".
+     * @param string       $fontSize         CSS length, e.g. "0.75rem".
      * @param string       $gridColor
      * @param string       $axisColor
-     * @param string       $trackColor Background color for progress track and donut "empty" portion.
+     * @param string       $trackColor       Background color for progress track and donut "empty" portion.
+     *
+     * CSS-hover tooltip theming tokens — these map to the following CSS custom
+     * properties on the `.svgraph` wrapper, which you can also override in your
+     * own stylesheet:
+     *
+     * @param string $tooltipBackground  `--svgraph-tt-bg`     Tooltip panel background color.
+     * @param string $tooltipTextColor   `--svgraph-tt-fg`     Tooltip text color.
+     * @param string $tooltipBorderRadius `--svgraph-tt-r`     Tooltip corner radius (CSS length).
      */
     public function __construct(
         public array $palette,
@@ -29,6 +37,9 @@ final readonly class Theme
         public string $gridColor,
         public string $axisColor,
         public string $trackColor,
+        public string $tooltipBackground = '#1f2937',
+        public string $tooltipTextColor = '#f9fafb',
+        public string $tooltipBorderRadius = '0.25rem',
     ) {}
 
     public static function default(): self
@@ -60,6 +71,8 @@ final readonly class Theme
             gridColor: '#374151',
             axisColor: '#6b7280',
             trackColor: '#374151',
+            tooltipBackground: '#111827',
+            tooltipTextColor: '#f3f4f6',
         );
     }
 
@@ -76,6 +89,38 @@ final readonly class Theme
             gridColor: $this->gridColor,
             axisColor: $this->axisColor,
             trackColor: $this->trackColor,
+            tooltipBackground: $this->tooltipBackground,
+            tooltipTextColor: $this->tooltipTextColor,
+            tooltipBorderRadius: $this->tooltipBorderRadius,
+        );
+    }
+
+    /**
+     * Return a copy with different tooltip styling.
+     *
+     * The values are emitted as CSS custom properties on the wrapper element:
+     *   --svgraph-tt-bg, --svgraph-tt-fg, --svgraph-tt-r
+     * You can also set these properties directly in your own CSS.
+     */
+    public function withTooltip(
+        ?string $background = null,
+        ?string $textColor = null,
+        ?string $borderRadius = null,
+    ): self {
+        return new self(
+            palette: $this->palette,
+            stroke: $this->stroke,
+            strokeWidth: $this->strokeWidth,
+            fill: $this->fill,
+            textColor: $this->textColor,
+            fontFamily: $this->fontFamily,
+            fontSize: $this->fontSize,
+            gridColor: $this->gridColor,
+            axisColor: $this->axisColor,
+            trackColor: $this->trackColor,
+            tooltipBackground: $background ?? $this->tooltipBackground,
+            tooltipTextColor: $textColor ?? $this->tooltipTextColor,
+            tooltipBorderRadius: $borderRadius ?? $this->tooltipBorderRadius,
         );
     }
 

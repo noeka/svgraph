@@ -9,6 +9,7 @@ use Noeka\Svgraph\Geometry\Scale;
 use Noeka\Svgraph\Geometry\Viewport;
 use Noeka\Svgraph\Svg\Label;
 use Noeka\Svgraph\Svg\Tag;
+use Noeka\Svgraph\Svg\Tooltip;
 use Noeka\Svgraph\Svg\Wrapper;
 
 class BarChart extends AbstractChart
@@ -148,6 +149,7 @@ class BarChart extends AbstractChart
             }
         }
 
+        $chartId = $this->chartId();
         $baseY = $yScale->map(0.0);
         foreach ($this->series->points as $i => $point) {
             $value = $point->value;
@@ -156,19 +158,29 @@ class BarChart extends AbstractChart
             $top = min($baseY, $valueY);
             $height = abs($valueY - $baseY);
             $color = $this->useColorPerBar ? $this->theme->colorAt($i) : ($this->color ?? $this->theme->fill);
+            $id = "{$chartId}-pt-{$i}";
             $attrs = [
+                'id' => $id,
                 'x' => Tag::formatFloat($x),
                 'y' => Tag::formatFloat($top),
                 'width' => Tag::formatFloat($barWidth),
                 'height' => Tag::formatFloat($height),
                 'fill' => $color,
+                'tabindex' => '0',
             ];
             if ($this->cornerRadius > 0.0) {
                 $attrs['rx'] = Tag::formatFloat($this->cornerRadius);
                 $attrs['ry'] = Tag::formatFloat($this->cornerRadius);
             }
+            $tipText = $this->tooltip($point->label, $value);
             $wrapper->add(Tag::make('rect', $attrs)->append(
-                Tag::make('title')->append($this->tooltip($point->label, $value))
+                Tag::make('title')->append($tipText),
+            ));
+            $wrapper->tooltip(new Tooltip(
+                id: $id,
+                text: Tag::escapeText($tipText),
+                leftPct: ($x + $barWidth / 2) / $viewport->width * 100,
+                topPct: $top / $viewport->height * 100,
             ));
         }
 
@@ -257,6 +269,7 @@ class BarChart extends AbstractChart
             }
         }
 
+        $chartId = $this->chartId();
         $baseX = $xScale->map(0.0);
         foreach ($this->series->points as $i => $point) {
             $value = $point->value;
@@ -265,19 +278,29 @@ class BarChart extends AbstractChart
             $left = min($baseX, $valueX);
             $width = abs($valueX - $baseX);
             $color = $this->useColorPerBar ? $this->theme->colorAt($i) : ($this->color ?? $this->theme->fill);
+            $id = "{$chartId}-pt-{$i}";
             $attrs = [
+                'id' => $id,
                 'x' => Tag::formatFloat($left),
                 'y' => Tag::formatFloat($y),
                 'width' => Tag::formatFloat($width),
                 'height' => Tag::formatFloat($barHeight),
                 'fill' => $color,
+                'tabindex' => '0',
             ];
             if ($this->cornerRadius > 0.0) {
                 $attrs['rx'] = Tag::formatFloat($this->cornerRadius);
                 $attrs['ry'] = Tag::formatFloat($this->cornerRadius);
             }
+            $tipText = $this->tooltip($point->label, $value);
             $wrapper->add(Tag::make('rect', $attrs)->append(
-                Tag::make('title')->append($this->tooltip($point->label, $value))
+                Tag::make('title')->append($tipText),
+            ));
+            $wrapper->tooltip(new Tooltip(
+                id: $id,
+                text: Tag::escapeText($tipText),
+                leftPct: ($left + $width) / $viewport->width * 100,
+                topPct: ($y + $barHeight / 2) / $viewport->height * 100,
             ));
         }
 

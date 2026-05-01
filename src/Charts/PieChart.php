@@ -10,6 +10,7 @@ use Noeka\Svgraph\Geometry\Viewport;
 use Noeka\Svgraph\Svg\Css;
 use Noeka\Svgraph\Svg\Label;
 use Noeka\Svgraph\Svg\Tag;
+use Noeka\Svgraph\Svg\Tooltip;
 use Noeka\Svgraph\Svg\Wrapper;
 
 class PieChart extends AbstractChart
@@ -96,15 +97,27 @@ class PieChart extends AbstractChart
         $startRad = deg2rad($this->startAngle);
         $padRad = deg2rad($this->padAngle);
 
+        $chartId = $this->chartId();
+
         if ($this->thickness === 0.0 && count($this->slices) === 1) {
             $only = $this->slices[0];
             $color = $only->color ?? $this->theme->colorAt(0);
+            $id = "{$chartId}-pt-0";
+            $tipText = $this->tooltip($only->label, $only->value);
             $wrapper->add(Tag::make('circle', [
+                'id' => $id,
                 'cx' => Tag::formatFloat($cx),
                 'cy' => Tag::formatFloat($cy),
                 'r' => Tag::formatFloat($outerRadius),
                 'fill' => $color,
-            ])->append(Tag::make('title')->append($this->tooltip($only->label, $only->value))));
+                'tabindex' => '0',
+            ])->append(Tag::make('title')->append($tipText)));
+            $wrapper->tooltip(new Tooltip(
+                id: $id,
+                text: Tag::escapeText($tipText),
+                leftPct: $cx / $viewport->width * 100,
+                topPct: ($cy - $outerRadius) / $viewport->height * 100,
+            ));
             if ($hasLegend) {
                 $this->addLegend($wrapper);
             }
@@ -126,10 +139,25 @@ class PieChart extends AbstractChart
             }
             $color = $slice->color ?? $this->theme->colorAt($i);
             $d = Path::arc($cx, $cy, $outerRadius, $innerRadius, $start, $end);
+            $id = "{$chartId}-pt-{$i}";
+            $tipText = $this->tooltip($slice->label, $value);
             $wrapper->add(Tag::make('path', [
+                'id' => $id,
                 'd' => $d,
                 'fill' => $color,
-            ])->append(Tag::make('title')->append($this->tooltip($slice->label, $value))));
+                'tabindex' => '0',
+            ])->append(Tag::make('title')->append($tipText)));
+            // Anchor the tooltip at the arc centroid.
+            $tipRadius = $innerRadius > 0
+                ? ($outerRadius + $innerRadius) / 2
+                : $outerRadius * 0.6;
+            [$tipX, $tipY] = Path::polar($cx, $cy, $tipRadius, ($start + $end) / 2);
+            $wrapper->tooltip(new Tooltip(
+                id: $id,
+                text: Tag::escapeText($tipText),
+                leftPct: $tipX / $viewport->width * 100,
+                topPct: $tipY / $viewport->height * 100,
+            ));
             $angle += $sweep;
         }
 
