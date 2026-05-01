@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Noeka\Svgraph\Geometry;
 
+use Noeka\Svgraph\Svg\Tag;
+
 /**
  * The logical SVG viewport. We always use a fixed 100x100 box because the
  * outer wrapper stretches the SVG with preserveAspectRatio="none". Padding
@@ -57,10 +59,6 @@ final readonly class Viewport
 
     public function viewBox(): string
     {
-        return sprintf(
-            '0 0 %s %s',
-            rtrim(rtrim(number_format($this->width, 2, '.', ''), '0'), '.'),
-            rtrim(rtrim(number_format($this->height, 2, '.', ''), '0'), '.'),
-        );
+        return '0 0 ' . Tag::formatFloat($this->width) . ' ' . Tag::formatFloat($this->height);
     }
 }

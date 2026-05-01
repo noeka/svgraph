@@ -87,11 +87,14 @@ final class Wrapper
         $div->append($svg);
 
         if ($this->labels !== []) {
+            $fontFamily = Css::fontFamily($this->theme->fontFamily) ?? 'inherit';
+            $fontSize = Css::length($this->theme->fontSize) ?? '0.75rem';
+            $textColor = Css::color($this->theme->textColor) ?? 'currentColor';
             $labelStyle = sprintf(
                 'position:absolute;inset:0;pointer-events:none;font-family:%s;font-size:%s;color:%s;line-height:1;',
-                $this->theme->fontFamily,
-                $this->theme->fontSize,
-                $this->theme->textColor,
+                $fontFamily,
+                $fontSize,
+                $textColor,
             );
             $labelTag = Tag::make('div', [
                 'class' => 'svgraph__labels',

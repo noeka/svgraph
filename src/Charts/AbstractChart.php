@@ -48,4 +48,15 @@ abstract class AbstractChart implements \Stringable
     {
         return $this->render();
     }
+
+    protected function formatNumber(float $value): string
+    {
+        if (abs($value) >= 1000) {
+            return number_format($value, 0, '.', ',');
+        }
+        if (floor($value) === $value) {
+            return (string) (int) $value;
+        }
+        return rtrim(rtrim(number_format($value, 2, '.', ''), '0'), '.');
+    }
 }

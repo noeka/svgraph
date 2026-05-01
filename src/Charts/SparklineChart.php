@@ -18,12 +18,4 @@ final class SparklineChart extends LineChart
         $this->fillEnabled = true;
         $this->fillOpacity = 0.15;
     }
-
-    public function render(): string
-    {
-        $this->showAxes = false;
-        $this->showGrid = false;
-        $this->showPoints = false;
-        return parent::render();
-    }
 }
