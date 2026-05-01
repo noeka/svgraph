@@ -162,23 +162,20 @@ class BarChart extends AbstractChart
             $seriesIndex = $this->useColorPerBar ? $i : 0;
             $id = "{$chartId}-pt-{$i}";
             $attrs = [
-                'id' => $id,
                 'class' => "series-{$seriesIndex}",
                 'x' => Tag::formatFloat($x),
                 'y' => Tag::formatFloat($top),
                 'width' => Tag::formatFloat($barWidth),
                 'height' => Tag::formatFloat($height),
                 'fill' => $color,
-                'tabindex' => '0',
             ];
             if ($this->cornerRadius > 0.0) {
                 $attrs['rx'] = Tag::formatFloat($this->cornerRadius);
                 $attrs['ry'] = Tag::formatFloat($this->cornerRadius);
             }
             $tipText = $this->tooltip($point->label, $value);
-            $wrapper->add(Tag::make('rect', $attrs)->append(
-                Tag::make('title')->append($tipText),
-            ));
+            $rect = Tag::make('rect', $attrs)->append(Tag::make('title')->append($tipText));
+            $wrapper->add($this->buildLink($point->link, $id, $rect));
             $wrapper->tooltip(new Tooltip(
                 id: $id,
                 text: Tag::escapeText($tipText),
@@ -285,23 +282,20 @@ class BarChart extends AbstractChart
             $seriesIndex = $this->useColorPerBar ? $i : 0;
             $id = "{$chartId}-pt-{$i}";
             $attrs = [
-                'id' => $id,
                 'class' => "series-{$seriesIndex}",
                 'x' => Tag::formatFloat($left),
                 'y' => Tag::formatFloat($y),
                 'width' => Tag::formatFloat($width),
                 'height' => Tag::formatFloat($barHeight),
                 'fill' => $color,
-                'tabindex' => '0',
             ];
             if ($this->cornerRadius > 0.0) {
                 $attrs['rx'] = Tag::formatFloat($this->cornerRadius);
                 $attrs['ry'] = Tag::formatFloat($this->cornerRadius);
             }
             $tipText = $this->tooltip($point->label, $value);
-            $wrapper->add(Tag::make('rect', $attrs)->append(
-                Tag::make('title')->append($tipText),
-            ));
+            $rect = Tag::make('rect', $attrs)->append(Tag::make('title')->append($tipText));
+            $wrapper->add($this->buildLink($point->link, $id, $rect));
             $wrapper->tooltip(new Tooltip(
                 id: $id,
                 text: Tag::escapeText($tipText),

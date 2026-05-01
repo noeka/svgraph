@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Noeka\Svgraph\Charts;
 
+use Noeka\Svgraph\Data\Link;
+use Noeka\Svgraph\Svg\Tag;
 use Noeka\Svgraph\Theme;
 
 abstract class AbstractChart implements \Stringable
@@ -77,5 +79,28 @@ abstract class AbstractChart implements \Stringable
     protected function chartId(): string
     {
         return 'svgraph-' . $this->instanceId;
+    }
+
+    /**
+     * Wrap $inner in an SVG <a> carrying $id when $link is set; otherwise
+     * attach $id and tabindex="0" directly to $inner and return it.
+     *
+     * When wrapped, the <a> is the ID/focus carrier and the inner element keeps
+     * only its visual attributes (class, fill, etc.). SVG <a> is natively
+     * keyboard-activatable via Enter — no tabindex needed.
+     */
+    protected function buildLink(?Link $link, string $id, Tag $inner): Tag
+    {
+        if ($link === null) {
+            return $inner->attr('id', $id)->attr('tabindex', '0');
+        }
+        $attrs = ['id' => $id, 'href' => $link->href, 'class' => 'svgraph-linked'];
+        if ($link->target !== null) {
+            $attrs['target'] = $link->target;
+        }
+        if ($link->rel !== '') {
+            $attrs['rel'] = $link->rel;
+        }
+        return Tag::make('a', $attrs)->append($inner);
     }
 }

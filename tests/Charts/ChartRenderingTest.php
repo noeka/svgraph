@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace Noeka\Svgraph\Tests\Charts;
 
 use Noeka\Svgraph\Chart;
+use Noeka\Svgraph\Data\Link;
+use Noeka\Svgraph\Data\Point;
+use Noeka\Svgraph\Data\Slice;
 use Noeka\Svgraph\Theme;
 use PHPUnit\Framework\TestCase;
 
@@ -624,5 +627,134 @@ final class ChartRenderingTest extends TestCase
         self::assertStringContainsString('class="series-0"', $svg);
         self::assertStringContainsString('class="series-1"', $svg);
         self::assertStringContainsString('--pop-x:', $svg);
+    }
+
+    // ── Click-through link tests (issue #7) ──────────────────────────────────
+
+    public function test_bar_linked_point_wraps_rect_in_anchor(): void
+    {
+        $svg = Chart::bar([
+            new Point(10, 'Jan', new Link('https://example.com/jan')),
+            new Point(20, 'Feb'),
+        ])->render();
+
+        self::assertMatchesRegularExpression(
+            '/<a[^>]+href="https:\/\/example\.com\/jan"[^>]*>.*?<rect[^>]+class="series-0"/',
+            $svg,
+        );
+        self::assertStringContainsString('class="svgraph-linked"', $svg);
+        // Non-linked bar must NOT be wrapped in <a>.
+        self::assertSame(1, substr_count($svg, '<a '));
+    }
+
+    public function test_bar_linked_anchor_carries_id_and_non_linked_rect_carries_id(): void
+    {
+        $svg = Chart::bar([
+            new Point(10, 'Jan', new Link('https://example.com')),
+            new Point(20, 'Feb'),
+        ])->render();
+
+        // Linked: ID on <a>, no tabindex on rect.
+        self::assertMatchesRegularExpression('/<a[^>]+id="svgraph-\d+-pt-0"/', $svg);
+        // Non-linked: ID on rect itself.
+        self::assertMatchesRegularExpression('/<rect[^>]+id="svgraph-\d+-pt-1"/', $svg);
+    }
+
+    public function test_bar_linked_anchor_with_blank_target_gets_noopener_rel(): void
+    {
+        $svg = Chart::bar([
+            new Point(5, 'X', new Link('https://example.com', '_blank')),
+        ])->render();
+
+        self::assertStringContainsString('target="_blank"', $svg);
+        self::assertStringContainsString('rel="noopener noreferrer"', $svg);
+    }
+
+    public function test_bar_linked_anchor_explicit_rel_is_honoured(): void
+    {
+        $svg = Chart::bar([
+            new Point(5, 'X', new Link('https://example.com', '_self', 'noopener')),
+        ])->render();
+
+        self::assertStringContainsString('rel="noopener"', $svg);
+    }
+
+    public function test_bar_url_is_xml_escaped_in_href(): void
+    {
+        $svg = Chart::bar([
+            new Point(5, 'X', new Link('https://example.com/q?a=1&b=2')),
+        ])->render();
+
+        self::assertStringContainsString('href="https://example.com/q?a=1&amp;b=2"', $svg);
+    }
+
+    public function test_pie_linked_slice_wraps_path_in_anchor(): void
+    {
+        $svg = Chart::pie([
+            new Slice('Alpha', 50, null, new Link('https://example.com/alpha')),
+            new Slice('Beta', 50),
+        ])->render();
+
+        self::assertMatchesRegularExpression(
+            '/<a[^>]+href="https:\/\/example\.com\/alpha"[^>]*>.*?<path[^>]+class="series-0"/',
+            $svg,
+        );
+        self::assertSame(1, substr_count($svg, '<a '));
+    }
+
+    public function test_pie_slice_from_tuple_with_link_wraps_in_anchor(): void
+    {
+        $link = new Link('https://example.com/stripe');
+        $svg = Chart::pie([
+            ['Stripe', 80, null, $link],
+            ['PayPal', 20],
+        ])->render();
+
+        self::assertStringContainsString('href="https://example.com/stripe"', $svg);
+        self::assertSame(1, substr_count($svg, '<a '));
+    }
+
+    public function test_line_linked_point_wraps_group_in_anchor(): void
+    {
+        $svg = Chart::line([
+            new Point(10, 'Mon', new Link('https://example.com/mon')),
+            new Point(20, 'Tue'),
+        ])->points()->render();
+
+        self::assertMatchesRegularExpression(
+            '/<a[^>]+href="https:\/\/example\.com\/mon"[^>]*>.*?<g[^>]+class="series-0"/',
+            $svg,
+        );
+        self::assertSame(1, substr_count($svg, '<a '));
+    }
+
+    public function test_linked_point_from_series_tuple(): void
+    {
+        $link = new Link('https://example.com/mon');
+        $svg = Chart::bar([
+            ['Mon', 10, $link],
+            ['Tue', 20],
+        ])->render();
+
+        self::assertStringContainsString('href="https://example.com/mon"', $svg);
+        self::assertSame(1, substr_count($svg, '<a '));
+    }
+
+    public function test_linked_elements_emit_cursor_pointer_css(): void
+    {
+        $svg = Chart::bar([
+            new Point(5, 'X', new Link('https://example.com')),
+        ])->render();
+
+        self::assertStringContainsString('a.svgraph-linked{cursor:pointer;}', $svg);
+    }
+
+    public function test_linked_elements_emit_focus_visible_css(): void
+    {
+        $svg = Chart::bar([
+            new Point(5, 'X', new Link('https://example.com')),
+        ])->render();
+
+        self::assertStringContainsString('a.svgraph-linked:focus-visible', $svg);
     }
 }

@@ -106,15 +106,14 @@ class PieChart extends AbstractChart
             $color = $only->color ?? $this->theme->colorAt(0);
             $id = "{$chartId}-pt-0";
             $tipText = $this->tooltip($only->label, $only->value);
-            $wrapper->add(Tag::make('circle', [
-                'id' => $id,
+            $circle = Tag::make('circle', [
                 'class' => 'series-0',
                 'cx' => Tag::formatFloat($cx),
                 'cy' => Tag::formatFloat($cy),
                 'r' => Tag::formatFloat($outerRadius),
                 'fill' => $color,
-                'tabindex' => '0',
-            ])->append(Tag::make('title')->append($tipText)));
+            ])->append(Tag::make('title')->append($tipText));
+            $wrapper->add($this->buildLink($only->link, $id, $circle));
             $wrapper->tooltip(new Tooltip(
                 id: $id,
                 text: Tag::escapeText($tipText),
@@ -149,14 +148,13 @@ class PieChart extends AbstractChart
             $midAngle = ($start + $end) / 2;
             $popX = round(sin($midAngle), 4);
             $popY = round(-cos($midAngle), 4);
-            $wrapper->add(Tag::make('path', [
-                'id' => $id,
+            $path = Tag::make('path', [
                 'class' => "series-{$i}",
                 'style' => "--pop-x:{$popX};--pop-y:{$popY};",
                 'd' => $d,
                 'fill' => $color,
-                'tabindex' => '0',
-            ])->append(Tag::make('title')->append($tipText)));
+            ])->append(Tag::make('title')->append($tipText));
+            $wrapper->add($this->buildLink($slice->link, $id, $path));
             // Anchor the tooltip at the arc centroid.
             $tipRadius = $innerRadius > 0
                 ? ($outerRadius + $innerRadius) / 2

@@ -41,13 +41,14 @@ final readonly class Series implements \Countable
                 }
                 continue;
             }
-            if (is_array($value) && count($value) === 2) {
-                [$label, $val] = array_values($value);
-                $val = self::toFloat($val);
+            if (is_array($value) && count($value) >= 2) {
+                $arr = array_values($value);
+                $val = self::toFloat($arr[1]);
                 if (!is_finite($val)) {
                     continue;
                 }
-                $points[] = new Point($val, self::toLabel($label));
+                $link = isset($arr[2]) && $arr[2] instanceof Link ? $arr[2] : null;
+                $points[] = new Point($val, self::toLabel($arr[0]), $link);
                 continue;
             }
             $val = self::toFloat($value);

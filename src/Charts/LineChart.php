@@ -192,6 +192,7 @@ class LineChart extends AbstractChart
                 $p = $this->series->points[$i];
                 $id = "{$chartId}-pt-{$i}";
                 $tipText = $this->tooltip($p->label, $p->value);
+                $hasLink = $p->link !== null;
                 // Wrap visual marker + transparent hit target in a <g> so that
                 // CSS :hover/:focus-within on the group can highlight the visual
                 // ellipse even though the (larger) hit target intercepts events.
@@ -204,16 +205,18 @@ class LineChart extends AbstractChart
                     'fill' => $stroke,
                 ])->append(Tag::make('title')->append($tipText)));
                 // Transparent hit target — larger than the visual dot for easier hover/focus.
-                $group->append(Tag::make('ellipse', [
-                    'id' => $id,
+                // When linked, the <a> carries id/tabindex; otherwise they live here.
+                $hitAttrs = [
+                    'id' => $hasLink ? null : $id,
                     'cx' => Tag::formatFloat($x),
                     'cy' => Tag::formatFloat($y),
                     'rx' => Tag::formatFloat($hitRx),
                     'ry' => Tag::formatFloat($hitR),
                     'fill' => 'transparent',
-                    'tabindex' => '0',
-                ])->append(Tag::make('title')->append($tipText)));
-                $wrapper->add($group);
+                    'tabindex' => $hasLink ? null : '0',
+                ];
+                $group->append(Tag::make('ellipse', $hitAttrs)->append(Tag::make('title')->append($tipText)));
+                $wrapper->add($hasLink ? $this->buildLink($p->link, $id, $group) : $group);
                 $wrapper->tooltip(new Tooltip(
                     id: $id,
                     text: Tag::escapeText($tipText),
