@@ -59,4 +59,10 @@ abstract class AbstractChart implements \Stringable
         }
         return rtrim(rtrim(number_format($value, 2, '.', ''), '0'), '.');
     }
+
+    protected function tooltip(?string $label, float $value): string
+    {
+        $formatted = $this->formatNumber($value);
+        return ($label !== null && $label !== '') ? "{$label}: {$formatted}" : $formatted;
+    }
 }

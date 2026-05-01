@@ -99,12 +99,12 @@ class PieChart extends AbstractChart
         if ($this->thickness === 0.0 && count($this->slices) === 1) {
             $only = $this->slices[0];
             $color = $only->color ?? $this->theme->colorAt(0);
-            $wrapper->add(Tag::void('circle', [
+            $wrapper->add(Tag::make('circle', [
                 'cx' => Tag::formatFloat($cx),
                 'cy' => Tag::formatFloat($cy),
                 'r' => Tag::formatFloat($outerRadius),
                 'fill' => $color,
-            ]));
+            ])->append(Tag::make('title')->append($this->tooltip($only->label, $only->value))));
             if ($hasLegend) {
                 $this->addLegend($wrapper);
             }
@@ -126,10 +126,10 @@ class PieChart extends AbstractChart
             }
             $color = $slice->color ?? $this->theme->colorAt($i);
             $d = Path::arc($cx, $cy, $outerRadius, $innerRadius, $start, $end);
-            $wrapper->add(Tag::void('path', [
+            $wrapper->add(Tag::make('path', [
                 'd' => $d,
                 'fill' => $color,
-            ]));
+            ])->append(Tag::make('title')->append($this->tooltip($slice->label, $value))));
             $angle += $sweep;
         }
 

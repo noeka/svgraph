@@ -94,7 +94,8 @@ final class ProgressChart extends AbstractChart
         ]));
 
         if ($fraction > 0.0) {
-            $wrapper->add(Tag::void('rect', [
+            $title = $this->formatNumber($this->value) . ' / ' . $this->formatNumber($this->target);
+            $wrapper->add(Tag::make('rect', [
                 'x' => '0',
                 'y' => '0',
                 'width' => Tag::formatFloat($fraction * 100),
@@ -102,7 +103,7 @@ final class ProgressChart extends AbstractChart
                 'rx' => Tag::formatFloat($rx),
                 'ry' => Tag::formatFloat($rx),
                 'fill' => $color,
-            ]));
+            ])->append(Tag::make('title')->append($title)));
         }
 
         if ($this->showValue) {
