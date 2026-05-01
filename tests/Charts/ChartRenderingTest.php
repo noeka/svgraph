@@ -43,7 +43,8 @@ final class ChartRenderingTest extends TestCase
     {
         $svg = Chart::line([10, 50, 30, 70])->points()->render();
 
-        self::assertSame(4, substr_count($svg, '<ellipse '));
+        // Each point emits a visible ellipse marker plus a larger transparent hit target.
+        self::assertSame(8, substr_count($svg, '<ellipse '));
     }
 
     public function test_line_axes_emit_axis_lines_and_tick_labels(): void
@@ -352,5 +353,155 @@ final class ChartRenderingTest extends TestCase
 
         self::assertStringContainsString('<title>&lt;b&gt;Foo&lt;/b&gt;: 10</title>', $svg);
         self::assertStringNotContainsString('<title><b>', $svg);
+    }
+
+    // ── CSS-hover tooltip tests (issue #5) ────────────────────────────────────
+
+    public function test_bar_chart_emits_css_tooltip_divs(): void
+    {
+        $svg = Chart::bar(['Jan' => 10, 'Feb' => 20])->render();
+
+        self::assertStringContainsString('class="svgraph-tooltip"', $svg);
+        self::assertSame(2, substr_count($svg, 'class="svgraph-tooltip"'));
+        self::assertStringContainsString('data-for=', $svg);
+    }
+
+    public function test_horizontal_bar_emits_css_tooltip_divs(): void
+    {
+        $svg = Chart::bar(['A' => 5, 'B' => 10])->horizontal()->render();
+
+        self::assertSame(2, substr_count($svg, 'class="svgraph-tooltip"'));
+    }
+
+    public function test_line_points_emit_css_tooltip_divs(): void
+    {
+        $svg = Chart::line([10, 20, 30])->points()->render();
+
+        self::assertSame(3, substr_count($svg, 'class="svgraph-tooltip"'));
+    }
+
+    public function test_line_without_points_emits_no_css_tooltips(): void
+    {
+        $svg = Chart::line([10, 20, 30])->render();
+
+        self::assertStringNotContainsString('class="svgraph-tooltip"', $svg);
+    }
+
+    public function test_pie_emits_css_tooltip_divs(): void
+    {
+        $svg = Chart::pie(['A' => 50, 'B' => 30, 'C' => 20])->render();
+
+        self::assertSame(3, substr_count($svg, 'class="svgraph-tooltip"'));
+    }
+
+    public function test_pie_single_slice_emits_css_tooltip_div(): void
+    {
+        $svg = Chart::pie(['Only' => 100])->render();
+
+        self::assertSame(1, substr_count($svg, 'class="svgraph-tooltip"'));
+    }
+
+    public function test_donut_emits_css_tooltip_divs(): void
+    {
+        $svg = Chart::donut(['A' => 3, 'B' => 1])->render();
+
+        self::assertSame(2, substr_count($svg, 'class="svgraph-tooltip"'));
+    }
+
+    public function test_progress_fill_emits_css_tooltip_div(): void
+    {
+        $svg = Chart::progress(75, 100)->render();
+
+        self::assertSame(1, substr_count($svg, 'class="svgraph-tooltip"'));
+    }
+
+    public function test_progress_zero_fraction_emits_no_css_tooltip(): void
+    {
+        $svg = Chart::progress(0, 100)->render();
+
+        self::assertStringNotContainsString('class="svgraph-tooltip"', $svg);
+    }
+
+    public function test_css_tooltip_style_block_uses_at_supports_has(): void
+    {
+        $svg = Chart::bar(['A' => 1])->render();
+
+        self::assertStringContainsString('@supports selector(:has(a))', $svg);
+        self::assertStringContainsString(':hover', $svg);
+        self::assertStringContainsString(':focus-visible', $svg);
+    }
+
+    public function test_tooltip_data_for_matches_svg_element_id(): void
+    {
+        $svg = Chart::bar(['X' => 5])->render();
+
+        // Element IDs follow the format svgraph-{n}-pt-{i}.
+        self::assertMatchesRegularExpression('/id="svgraph-\d+-pt-0"/', $svg);
+        self::assertMatchesRegularExpression('/data-for="svgraph-\d+-pt-0"/', $svg);
+        self::assertMatchesRegularExpression('/#svgraph-\d+-pt-0:hover/', $svg);
+    }
+
+    public function test_data_elements_have_tabindex(): void
+    {
+        $svg = Chart::bar(['A' => 1, 'B' => 2])->render();
+
+        self::assertSame(2, substr_count($svg, 'tabindex="0"'));
+    }
+
+    public function test_line_points_hit_targets_have_tabindex(): void
+    {
+        $svg = Chart::line([5, 10, 15])->points()->render();
+
+        self::assertSame(3, substr_count($svg, 'tabindex="0"'));
+    }
+
+    public function test_pie_slices_have_tabindex(): void
+    {
+        $svg = Chart::pie(['A' => 1, 'B' => 1])->render();
+
+        self::assertSame(2, substr_count($svg, 'tabindex="0"'));
+    }
+
+    public function test_css_tooltip_div_contains_escaped_text(): void
+    {
+        $svg = Chart::bar(['<b>Q1</b>' => 100])->render();
+
+        // The CSS tooltip div must contain escaped HTML, not raw tags.
+        self::assertMatchesRegularExpression(
+            '/class="svgraph-tooltip"[^>]*>[^<]*&lt;b&gt;Q1&lt;\/b&gt;/',
+            $svg,
+        );
+        self::assertDoesNotMatchRegularExpression(
+            '/class="svgraph-tooltip"[^>]*><b>/',
+            $svg,
+        );
+    }
+
+    public function test_wrapper_emits_css_custom_properties_for_tooltip_theme(): void
+    {
+        $svg = Chart::bar(['A' => 1])
+            ->theme(Theme::default()->withTooltip('#112233', '#eeffaa', '0.5rem'))
+            ->render();
+
+        self::assertStringContainsString('--svgraph-tt-bg:#112233', $svg);
+        self::assertStringContainsString('--svgraph-tt-fg:#eeffaa', $svg);
+        self::assertStringContainsString('--svgraph-tt-r:0.5rem', $svg);
+    }
+
+    public function test_css_tooltip_style_uses_var_custom_properties(): void
+    {
+        $svg = Chart::bar(['A' => 1])->render();
+
+        self::assertStringContainsString('var(--svgraph-tt-bg', $svg);
+        self::assertStringContainsString('var(--svgraph-tt-fg', $svg);
+        self::assertStringContainsString('var(--svgraph-tt-r', $svg);
+    }
+
+    public function test_empty_bar_chart_emits_no_css_tooltips(): void
+    {
+        $svg = Chart::bar([])->render();
+
+        self::assertStringNotContainsString('class="svgraph-tooltip"', $svg);
+        self::assertStringNotContainsString('<style>', $svg);
     }
 }

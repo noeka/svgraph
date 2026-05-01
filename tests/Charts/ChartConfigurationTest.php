@@ -296,4 +296,46 @@ final class ChartConfigurationTest extends TestCase
         self::assertSame('#aaa', $theme->colorAt(2));
         self::assertSame('#bbb', $theme->colorAt(3));
     }
+
+    public function test_theme_tooltip_defaults(): void
+    {
+        $theme = Theme::default();
+        self::assertSame('#1f2937', $theme->tooltipBackground);
+        self::assertSame('#f9fafb', $theme->tooltipTextColor);
+        self::assertSame('0.25rem', $theme->tooltipBorderRadius);
+    }
+
+    public function test_theme_with_tooltip_overrides_values(): void
+    {
+        $theme = Theme::default()->withTooltip('#000000', '#ffffff', '4px');
+        self::assertSame('#000000', $theme->tooltipBackground);
+        self::assertSame('#ffffff', $theme->tooltipTextColor);
+        self::assertSame('4px', $theme->tooltipBorderRadius);
+        // Other properties are unchanged.
+        self::assertSame(Theme::default()->textColor, $theme->textColor);
+    }
+
+    public function test_with_palette_preserves_tooltip_properties(): void
+    {
+        $theme = Theme::default()
+            ->withTooltip('#aabbcc', '#112233', '8px')
+            ->withPalette('#ff0000');
+        self::assertSame('#aabbcc', $theme->tooltipBackground);
+        self::assertSame('#112233', $theme->tooltipTextColor);
+        self::assertSame('8px', $theme->tooltipBorderRadius);
+    }
+
+    public function test_theme_with_invalid_tooltip_colors_fall_back_in_css(): void
+    {
+        $theme = Theme::default()->withTooltip(
+            'red;background:url(x)',
+            'blue;color:evil',
+            'calc(1+1)',
+        );
+        $svg = Chart::bar(['A' => 1])->theme($theme)->render();
+        // Css::color rejects injections; fallback defaults must be used.
+        self::assertStringContainsString('--svgraph-tt-bg:#1f2937', $svg);
+        self::assertStringContainsString('--svgraph-tt-fg:#f9fafb', $svg);
+        self::assertStringContainsString('--svgraph-tt-r:0.25rem', $svg);
+    }
 }

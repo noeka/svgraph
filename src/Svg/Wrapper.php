@@ -12,6 +12,11 @@ use Noeka\Svgraph\Theme;
  * sized by padding-bottom, an absolutely-positioned <svg> with
  * preserveAspectRatio="none" for shape stretching, and an absolute <div>
  * for HTML labels that stay readable at any aspect ratio.
+ *
+ * When tooltips are registered via tooltip(), a <style> block and hidden
+ * tooltip <div>s are also emitted. CSS custom properties on the wrapper
+ * element control tooltip appearance and can be overridden from user CSS:
+ *   --svgraph-tt-bg, --svgraph-tt-fg, --svgraph-tt-r
  */
 final class Wrapper
 {
@@ -20,6 +25,9 @@ final class Wrapper
 
     /** @var list<Label> */
     private array $labels = [];
+
+    /** @var list<Tooltip> */
+    private array $tooltips = [];
 
     private ?string $userClass = null;
 
@@ -39,6 +47,12 @@ final class Wrapper
     public function label(Label $label): self
     {
         $this->labels[] = $label;
+        return $this;
+    }
+
+    public function tooltip(Tooltip $tooltip): self
+    {
+        $this->tooltips[] = $tooltip;
         return $this;
     }
 
@@ -62,6 +76,13 @@ final class Wrapper
             Tag::formatFloat($paddingBottom),
         );
 
+        if ($this->tooltips !== []) {
+            $bg = Css::color($this->theme->tooltipBackground) ?? '#1f2937';
+            $fg = Css::color($this->theme->tooltipTextColor) ?? '#f9fafb';
+            $r = Css::length($this->theme->tooltipBorderRadius) ?? '0.25rem';
+            $wrapperStyle .= "--svgraph-tt-bg:{$bg};--svgraph-tt-fg:{$fg};--svgraph-tt-r:{$r};";
+        }
+
         $svgStyle = 'position:absolute;inset:0;width:100%;height:100%;display:block;overflow:visible;';
 
         $svg = Tag::make('svg', [
@@ -84,6 +105,11 @@ final class Wrapper
             'class' => implode(' ', $classes),
             'style' => $wrapperStyle,
         ]);
+
+        if ($this->tooltips !== []) {
+            $div->appendRaw($this->buildTooltipStyle());
+        }
+
         $div->append($svg);
 
         if ($this->labels !== []) {
@@ -106,6 +132,39 @@ final class Wrapper
             $div->append($labelTag);
         }
 
+        foreach ($this->tooltips as $tip) {
+            $left = Tag::formatFloat($tip->leftPct) . '%';
+            $top = Tag::formatFloat($tip->topPct) . '%';
+            $div->append(
+                Tag::make('div', [
+                    'class' => 'svgraph-tooltip',
+                    'data-for' => $tip->id,
+                    'style' => "position:absolute;left:{$left};top:{$top};",
+                ])->appendRaw($tip->text),
+            );
+        }
+
         return (string) $div;
+    }
+
+    private function buildTooltipStyle(): string
+    {
+        $base = '.svgraph-tooltip{'
+            . 'position:absolute;display:none;'
+            . 'background:var(--svgraph-tt-bg,#1f2937);color:var(--svgraph-tt-fg,#f9fafb);'
+            . 'border-radius:var(--svgraph-tt-r,0.25rem);'
+            . 'padding:.25rem .5rem;font-size:.75rem;line-height:1.4;'
+            . 'white-space:nowrap;pointer-events:none;z-index:10;'
+            . 'transform:translate(-50%,-100%);margin-top:-.25rem;}';
+
+        $rules = '';
+        foreach ($this->tooltips as $tip) {
+            // id only contains [a-zA-Z0-9-] — no CSS escaping needed.
+            $id = $tip->id;
+            $rules .= ".svgraph:has(#{$id}:hover) [data-for=\"{$id}\"],"
+                . ".svgraph:has(#{$id}:focus-visible) [data-for=\"{$id}\"]{display:block;}";
+        }
+
+        return "<style>{$base}@supports selector(:has(a)){{$rules}}</style>";
     }
 }

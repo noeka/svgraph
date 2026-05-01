@@ -7,6 +7,7 @@ namespace Noeka\Svgraph\Charts;
 use Noeka\Svgraph\Geometry\Viewport;
 use Noeka\Svgraph\Svg\Label;
 use Noeka\Svgraph\Svg\Tag;
+use Noeka\Svgraph\Svg\Tooltip;
 use Noeka\Svgraph\Svg\Wrapper;
 
 final class ProgressChart extends AbstractChart
@@ -94,8 +95,10 @@ final class ProgressChart extends AbstractChart
         ]));
 
         if ($fraction > 0.0) {
+            $id = $this->chartId() . '-pt-0';
             $title = $this->formatNumber($this->value) . ' / ' . $this->formatNumber($this->target);
             $wrapper->add(Tag::make('rect', [
+                'id' => $id,
                 'x' => '0',
                 'y' => '0',
                 'width' => Tag::formatFloat($fraction * 100),
@@ -103,7 +106,14 @@ final class ProgressChart extends AbstractChart
                 'rx' => Tag::formatFloat($rx),
                 'ry' => Tag::formatFloat($rx),
                 'fill' => $color,
+                'tabindex' => '0',
             ])->append(Tag::make('title')->append($title)));
+            $wrapper->tooltip(new Tooltip(
+                id: $id,
+                text: Tag::escapeText($title),
+                leftPct: ($fraction * 100) / $viewport->width * 100,
+                topPct: ($height / 2) / $viewport->height * 100,
+            ));
         }
 
         if ($this->showValue) {
