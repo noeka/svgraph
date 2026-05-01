@@ -183,14 +183,15 @@ class LineChart extends AbstractChart
         if ($this->showPoints) {
             $r = $strokeWidth * 0.6;
             $rx = $r / max(0.01, $this->aspectRatio);
-            foreach ($points as [$x, $y]) {
-                $wrapper->add(Tag::void('ellipse', [
+            foreach ($points as $i => [$x, $y]) {
+                $p = $this->series->points[$i];
+                $wrapper->add(Tag::make('ellipse', [
                     'cx' => Tag::formatFloat($x),
                     'cy' => Tag::formatFloat($y),
                     'rx' => Tag::formatFloat($rx),
                     'ry' => Tag::formatFloat($r),
                     'fill' => $stroke,
-                ]));
+                ])->append(Tag::make('title')->append($this->tooltip($p->label, $p->value))));
             }
         }
 

@@ -271,4 +271,86 @@ final class ChartRenderingTest extends TestCase
         self::assertStringContainsString('svgraph--line', $svg);
         self::assertStringNotContainsString('<path', $svg);
     }
+
+    public function test_bar_rect_has_title_tooltip_with_label_and_value(): void
+    {
+        $svg = Chart::bar(['Jan' => 10, 'Feb' => 2500])->render();
+
+        self::assertStringContainsString('<title>Jan: 10</title>', $svg);
+        self::assertStringContainsString('<title>Feb: 2,500</title>', $svg);
+    }
+
+    public function test_bar_rect_without_label_shows_value_only(): void
+    {
+        $svg = Chart::bar([42, 7])->render();
+
+        self::assertStringContainsString('<title>42</title>', $svg);
+        self::assertStringContainsString('<title>7</title>', $svg);
+    }
+
+    public function test_horizontal_bar_has_title_tooltip(): void
+    {
+        $svg = Chart::bar(['Stripe' => 1240, 'PayPal' => 432])->horizontal()->render();
+
+        self::assertStringContainsString('<title>Stripe: 1,240</title>', $svg);
+        self::assertStringContainsString('<title>PayPal: 432</title>', $svg);
+    }
+
+    public function test_pie_slice_has_title_tooltip(): void
+    {
+        $svg = Chart::pie(['Alpha' => 50, 'Beta' => 30, 'Gamma' => 20])->render();
+
+        self::assertStringContainsString('<title>Alpha: 50</title>', $svg);
+        self::assertStringContainsString('<title>Beta: 30</title>', $svg);
+        self::assertStringContainsString('<title>Gamma: 20</title>', $svg);
+    }
+
+    public function test_pie_single_slice_circle_has_title_tooltip(): void
+    {
+        $svg = Chart::pie(['Only' => 100])->render();
+
+        self::assertStringContainsString('<circle ', $svg);
+        self::assertStringContainsString('<title>Only: 100</title>', $svg);
+    }
+
+    public function test_donut_slice_has_title_tooltip(): void
+    {
+        $svg = Chart::donut(['A' => 3, 'B' => 1])->render();
+
+        self::assertStringContainsString('<title>A: 3</title>', $svg);
+        self::assertStringContainsString('<title>B: 1</title>', $svg);
+    }
+
+    public function test_line_point_has_title_tooltip(): void
+    {
+        $svg = Chart::line([['Mon', 10], ['Tue', 24], ['Wed', 18]])->points()->render();
+
+        self::assertStringContainsString('<title>Mon: 10</title>', $svg);
+        self::assertStringContainsString('<title>Tue: 24</title>', $svg);
+        self::assertStringContainsString('<title>Wed: 18</title>', $svg);
+    }
+
+    public function test_line_point_without_label_shows_value_only(): void
+    {
+        $svg = Chart::line([5, 15, 10])->points()->render();
+
+        self::assertStringContainsString('<title>5</title>', $svg);
+        self::assertStringContainsString('<title>15</title>', $svg);
+        self::assertStringContainsString('<title>10</title>', $svg);
+    }
+
+    public function test_progress_fill_has_title_tooltip(): void
+    {
+        $svg = Chart::progress(75, 100)->render();
+
+        self::assertStringContainsString('<title>75 / 100</title>', $svg);
+    }
+
+    public function test_tooltip_text_is_html_escaped(): void
+    {
+        $svg = Chart::bar(['<b>Foo</b>' => 10])->render();
+
+        self::assertStringContainsString('<title>&lt;b&gt;Foo&lt;/b&gt;: 10</title>', $svg);
+        self::assertStringNotContainsString('<title><b>', $svg);
+    }
 }

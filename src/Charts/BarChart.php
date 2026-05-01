@@ -149,7 +149,8 @@ class BarChart extends AbstractChart
         }
 
         $baseY = $yScale->map(0.0);
-        foreach ($values as $i => $value) {
+        foreach ($this->series->points as $i => $point) {
+            $value = $point->value;
             $x = $viewport->plotLeft() + $i * $slotWidth + $barOffset;
             $valueY = $yScale->map($value);
             $top = min($baseY, $valueY);
@@ -166,7 +167,9 @@ class BarChart extends AbstractChart
                 $attrs['rx'] = Tag::formatFloat($this->cornerRadius);
                 $attrs['ry'] = Tag::formatFloat($this->cornerRadius);
             }
-            $wrapper->add(Tag::void('rect', $attrs));
+            $wrapper->add(Tag::make('rect', $attrs)->append(
+                Tag::make('title')->append($this->tooltip($point->label, $value))
+            ));
         }
 
         if ($this->showAxes) {
@@ -255,7 +258,8 @@ class BarChart extends AbstractChart
         }
 
         $baseX = $xScale->map(0.0);
-        foreach ($values as $i => $value) {
+        foreach ($this->series->points as $i => $point) {
+            $value = $point->value;
             $y = $viewport->plotTop() + $i * $slotHeight + $barOffset;
             $valueX = $xScale->map($value);
             $left = min($baseX, $valueX);
@@ -272,7 +276,9 @@ class BarChart extends AbstractChart
                 $attrs['rx'] = Tag::formatFloat($this->cornerRadius);
                 $attrs['ry'] = Tag::formatFloat($this->cornerRadius);
             }
-            $wrapper->add(Tag::void('rect', $attrs));
+            $wrapper->add(Tag::make('rect', $attrs)->append(
+                Tag::make('title')->append($this->tooltip($point->label, $value))
+            ));
         }
 
         if ($hasLabels) {
