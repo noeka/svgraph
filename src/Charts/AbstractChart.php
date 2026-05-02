@@ -18,6 +18,8 @@ abstract class AbstractChart implements \Stringable
 
     protected string $variantClass = 'chart';
 
+    protected bool $animated = false;
+
     private static int $nextId = 0;
     private int $instanceId;
 
@@ -45,6 +47,18 @@ abstract class AbstractChart implements \Stringable
     public function cssClass(?string $class): static
     {
         $this->cssClass = $class;
+        return $this;
+    }
+
+    /**
+     * Enable CSS entrance animations. Animations are wrapped in
+     * `@media (prefers-reduced-motion: no-preference)` so users with reduced-motion
+     * preferences always see a static chart. Duration and easing are configurable
+     * via `Theme::withAnimation()`.
+     */
+    public function animate(bool $on = true): static
+    {
+        $this->animated = $on;
         return $this;
     }
 

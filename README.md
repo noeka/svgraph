@@ -136,6 +136,51 @@ Chart::progress(value: 7400, target: 10000)
 
 ---
 
+## Entrance animations
+
+All chart types support opt-in CSS entrance animations via `->animate()`. Animations use pure `@keyframes` — no JavaScript required — and are always wrapped in `@media (prefers-reduced-motion: no-preference)` so users who request reduced motion always receive a static chart.
+
+```php
+// Line: the stroke draws on from left to right
+Chart::line($data)->axes()->grid()->smooth()->stroke('#3b82f6')->animate()
+
+// Bar: bars grow from the baseline
+Chart::bar(['Jan' => 120, 'Feb' => 180, 'Mar' => 90])->axes()->color('#10b981')->animate()
+
+// Horizontal bar: bars extend from the axis
+Chart::bar($data)->horizontal()->rainbow()->animate()
+
+// Pie/donut: slices sweep in using the stroke-circle technique
+Chart::pie(['Stripe' => 1240, 'PayPal' => 432, 'Bank' => 312])->legend()->animate()
+Chart::donut($data)->thickness(0.5)->animate()
+```
+
+**Animation details by chart type:**
+
+| Chart | Technique | Notes |
+|-------|-----------|-------|
+| Line / Sparkline | `stroke-dashoffset` draw-on using `pathLength="1"` | Full line draws from left to right |
+| Bar (vertical) | `scaleY` from baseline (`transform-origin` set per bar) | Negative bars grow from top |
+| Bar (horizontal) | `scaleX` from axis | Negative bars grow from right |
+| Pie / Donut | `stroke-dasharray` sweep on stroke-circles | Slices stagger by 80 ms each |
+
+Duration and easing are theme-tokenised and can be customised via `Theme::withAnimation()`:
+
+```php
+Chart::pie($data)->animate()->theme(
+    Theme::default()->withAnimation('0.4s', 'cubic-bezier(0.4,0,0.2,1)')
+)
+```
+
+| Method | Description |
+|--------|-------------|
+| `->animate(bool)` | Enable (or disable) entrance animations (default off) |
+| `Theme::withAnimation(duration, easing)` | Override `--svgraph-anim-dur` and `--svgraph-anim-ease` |
+
+The CSS custom properties `--svgraph-anim-dur` and `--svgraph-anim-ease` are emitted on the wrapper element and can also be overridden from your own stylesheet.
+
+---
+
 ## Theming
 
 All charts use `Theme::default()` out of the box. Pass a different theme or build your own:

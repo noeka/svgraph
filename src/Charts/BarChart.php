@@ -152,6 +152,9 @@ class BarChart extends AbstractChart
         $chartId = $this->chartId();
         $baseY = $yScale->map(0.0);
         $wrapper->markHasSeriesElements();
+        if ($this->animated) {
+            $wrapper->enableAnimation();
+        }
         foreach ($this->series->points as $i => $point) {
             $value = $point->value;
             $x = $viewport->plotLeft() + $i * $slotWidth + $barOffset;
@@ -172,6 +175,11 @@ class BarChart extends AbstractChart
             if ($this->cornerRadius > 0.0) {
                 $attrs['rx'] = Tag::formatFloat($this->cornerRadius);
                 $attrs['ry'] = Tag::formatFloat($this->cornerRadius);
+            }
+            if ($this->animated) {
+                $tfo = $value >= 0.0 ? 'center bottom' : 'center top';
+                $delay = round($i * 0.08, 3);
+                $attrs['style'] = "--svgraph-bar-tfo:{$tfo};--svgraph-bar-delay:{$delay}s;";
             }
             $tipText = $this->tooltip($point->label, $value);
             $rect = Tag::make('rect', $attrs)->append(Tag::make('title')->append($tipText));
@@ -272,6 +280,10 @@ class BarChart extends AbstractChart
         $chartId = $this->chartId();
         $baseX = $xScale->map(0.0);
         $wrapper->markHasSeriesElements();
+        if ($this->animated) {
+            $wrapper->enableAnimation();
+            $wrapper->setSecondaryVariant('bar-h');
+        }
         foreach ($this->series->points as $i => $point) {
             $value = $point->value;
             $y = $viewport->plotTop() + $i * $slotHeight + $barOffset;
@@ -292,6 +304,11 @@ class BarChart extends AbstractChart
             if ($this->cornerRadius > 0.0) {
                 $attrs['rx'] = Tag::formatFloat($this->cornerRadius);
                 $attrs['ry'] = Tag::formatFloat($this->cornerRadius);
+            }
+            if ($this->animated) {
+                $tfo = $value >= 0.0 ? 'left center' : 'right center';
+                $delay = round($i * 0.08, 3);
+                $attrs['style'] = "--svgraph-bar-tfo:{$tfo};--svgraph-bar-delay:{$delay}s;";
             }
             $tipText = $this->tooltip($point->label, $value);
             $rect = Tag::make('rect', $attrs)->append(Tag::make('title')->append($tipText));

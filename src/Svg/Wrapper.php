@@ -33,6 +33,10 @@ final class Wrapper
 
     private bool $hasSeriesElements = false;
 
+    private bool $animated = false;
+
+    private ?string $secondaryVariant = null;
+
     public function __construct(
         private readonly Viewport $viewport,
         private readonly float $aspectRatio,
@@ -70,11 +74,30 @@ final class Wrapper
         return $this;
     }
 
+    public function enableAnimation(): self
+    {
+        $this->animated = true;
+        return $this;
+    }
+
+    /**
+     * Add an extra `svgraph--{variant}` class to the wrapper, used to
+     * distinguish sub-variants (e.g. horizontal bars) for animation CSS.
+     */
+    public function setSecondaryVariant(string $variant): self
+    {
+        $this->secondaryVariant = $variant;
+        return $this;
+    }
+
     public function render(): string
     {
         $paddingBottom = (1.0 / max($this->aspectRatio, 0.01)) * 100.0;
 
         $classes = ['svgraph', 'svgraph--' . $this->variantClass];
+        if ($this->secondaryVariant !== null) {
+            $classes[] = 'svgraph--' . $this->secondaryVariant;
+        }
         if ($this->userClass !== null && $this->userClass !== '') {
             $classes[] = $this->userClass;
         }
@@ -100,6 +123,12 @@ final class Wrapper
                 . "--svgraph-pie-pop-distance:{$popDist};";
         }
 
+        if ($this->animated) {
+            $dur = Css::duration($this->theme->animationDuration) ?? '0.6s';
+            $ease = Css::easing($this->theme->animationEasing) ?? 'ease-out';
+            $wrapperStyle .= "--svgraph-anim-dur:{$dur};--svgraph-anim-ease:{$ease};";
+        }
+
         $svgStyle = 'position:absolute;inset:0;width:100%;height:100%;display:block;overflow:visible;';
 
         $svg = Tag::make('svg', [
@@ -123,7 +152,7 @@ final class Wrapper
             'style' => $wrapperStyle,
         ]);
 
-        if ($this->tooltips !== [] || $this->hasSeriesElements) {
+        if ($this->tooltips !== [] || $this->hasSeriesElements || $this->animated) {
             $div->appendRaw($this->buildStyle());
         }
 
@@ -176,6 +205,10 @@ final class Wrapper
             $css .= $this->buildTooltipStyle();
         }
 
+        if ($this->animated) {
+            $css .= $this->buildAnimationStyle();
+        }
+
         return "<style>{$css}</style>";
     }
 
@@ -207,8 +240,12 @@ final class Wrapper
         // inline CSS custom properties by the PHP renderer.
         $piePop = '.svgraph--pie path[class^="series-"]:hover,'
             . '.svgraph--pie path[class^="series-"]:focus-visible,'
+            . '.svgraph--pie circle[class^="series-"]:hover,'
+            . '.svgraph--pie circle[class^="series-"]:focus-visible,'
             . '.svgraph--donut path[class^="series-"]:hover,'
-            . '.svgraph--donut path[class^="series-"]:focus-visible{'
+            . '.svgraph--donut path[class^="series-"]:focus-visible,'
+            . '.svgraph--donut circle[class^="series-"]:hover,'
+            . '.svgraph--donut circle[class^="series-"]:focus-visible{'
             . 'transform:translate('
             . 'calc(var(--svgraph-pie-pop-distance,3px)*var(--pop-x,0)),'
             . 'calc(var(--svgraph-pie-pop-distance,3px)*var(--pop-y,0))'
@@ -219,9 +256,15 @@ final class Wrapper
             . '.svgraph--pie path[class^="series-"]:hover,'
             . '.svgraph--pie path[class^="series-"]:focus-visible,'
             . '.svgraph--pie a.svgraph-linked:focus-visible path[class^="series-"],'
+            . '.svgraph--pie circle[class^="series-"]:hover,'
+            . '.svgraph--pie circle[class^="series-"]:focus-visible,'
+            . '.svgraph--pie a.svgraph-linked:focus-visible circle[class^="series-"],'
             . '.svgraph--donut path[class^="series-"]:hover,'
             . '.svgraph--donut path[class^="series-"]:focus-visible,'
-            . '.svgraph--donut a.svgraph-linked:focus-visible path[class^="series-"]{'
+            . '.svgraph--donut a.svgraph-linked:focus-visible path[class^="series-"],'
+            . '.svgraph--donut circle[class^="series-"]:hover,'
+            . '.svgraph--donut circle[class^="series-"]:focus-visible,'
+            . '.svgraph--donut a.svgraph-linked:focus-visible circle[class^="series-"]{'
             . 'transform:none;}}';
 
         // Linked elements: cursor + keyboard-focus highlight rules.
@@ -243,7 +286,9 @@ final class Wrapper
             . '.svgraph a.svgraph-linked:focus-visible g[class^="series-"]>ellipse:first-child{'
             . 'filter:brightness(var(--svgraph-hover-brightness,1.2));}'
             . '.svgraph--pie a.svgraph-linked:focus-visible path[class^="series-"],'
-            . '.svgraph--donut a.svgraph-linked:focus-visible path[class^="series-"]{'
+            . '.svgraph--pie a.svgraph-linked:focus-visible circle[class^="series-"],'
+            . '.svgraph--donut a.svgraph-linked:focus-visible path[class^="series-"],'
+            . '.svgraph--donut a.svgraph-linked:focus-visible circle[class^="series-"]{'
             . 'transform:translate('
             . 'calc(var(--svgraph-pie-pop-distance,3px)*var(--pop-x,0)),'
             . 'calc(var(--svgraph-pie-pop-distance,3px)*var(--pop-y,0))'
@@ -271,5 +316,57 @@ final class Wrapper
         }
 
         return $base . '@supports selector(:has(a)){' . $rules . '}';
+    }
+
+    private function buildAnimationStyle(): string
+    {
+        $dur = 'var(--svgraph-anim-dur,0.6s)';
+        $ease = 'var(--svgraph-anim-ease,ease-out)';
+        $css = '';
+
+        // Line / sparkline: stroke-dasharray draw-on using pathLength="1" normalisation.
+        if ($this->variantClass === 'line' || $this->variantClass === 'sparkline') {
+            $css .= '@keyframes svgraph-draw-line{from{stroke-dashoffset:1}to{stroke-dashoffset:0}}'
+                . '.svgraph--' . $this->variantClass . ' .svgraph-line-path{'
+                . 'stroke-dasharray:1;'
+                . 'animation:svgraph-draw-line ' . $dur . ' ' . $ease . ' both;}';
+        }
+
+        // Bar: scale from the baseline edge on enter.
+        if ($this->variantClass === 'bar') {
+            if ($this->secondaryVariant === 'bar-h') {
+                // Horizontal bars grow from left (positive) or right (negative).
+                $css .= '@keyframes svgraph-grow-hbar{from{transform:scaleX(0)}to{transform:scaleX(1)}}'
+                    . '.svgraph--bar.svgraph--bar-h rect[class^="series-"]{'
+                    . 'transform-box:fill-box;'
+                    . 'transform-origin:var(--svgraph-bar-tfo,left center);'
+                    . 'animation:svgraph-grow-hbar ' . $dur . ' ' . $ease . ' both;'
+                    . 'animation-delay:var(--svgraph-bar-delay,0s);}';
+            } else {
+                // Vertical bars grow from bottom (positive) or top (negative).
+                $css .= '@keyframes svgraph-grow-vbar{from{transform:scaleY(0)}to{transform:scaleY(1)}}'
+                    . '.svgraph--bar:not(.svgraph--bar-h) rect[class^="series-"]{'
+                    . 'transform-box:fill-box;'
+                    . 'transform-origin:var(--svgraph-bar-tfo,center bottom);'
+                    . 'animation:svgraph-grow-vbar ' . $dur . ' ' . $ease . ' both;'
+                    . 'animation-delay:var(--svgraph-bar-delay,0s);}';
+            }
+        }
+
+        // Pie / donut: stroke-dasharray sweep using the stroke-circle technique.
+        // Each slice is rendered as a circle with stroke-dasharray; the from state
+        // has dasharray:0 circ (nothing visible) and the to state shows the arc.
+        // stroke-dashoffset stays constant (positions the arc correctly) while
+        // stroke-dasharray animates to reveal the slice.
+        if ($this->variantClass === 'pie' || $this->variantClass === 'donut') {
+            $css .= '@keyframes svgraph-pie-sweep{'
+                . 'from{stroke-dasharray:0 var(--svgraph-pie-circ)}'
+                . 'to{stroke-dasharray:var(--svgraph-pie-len) calc(var(--svgraph-pie-circ) - var(--svgraph-pie-len))}}'
+                . '.svgraph--' . $this->variantClass . ' circle[class^="series-"]{'
+                . 'animation:svgraph-pie-sweep ' . $dur . ' ' . $ease . ' both;'
+                . 'animation-delay:var(--svgraph-pie-delay,0ms);}';
+        }
+
+        return '@media (prefers-reduced-motion:no-preference){' . $css . '}';
     }
 }

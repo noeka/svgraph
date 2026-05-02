@@ -32,6 +32,11 @@ final readonly class Theme
      * @param string $hoverBrightness   `--svgraph-hover-brightness`   CSS `<number>` passed to brightness(). Default 1.2.
      * @param string $hoverStrokeWidth  `--svgraph-hover-stroke-width` SVG stroke-width added on hover. Default 1.5.
      * @param string $piePopDistance    `--svgraph-pie-pop-distance`   CSS `<length>` (e.g. "3px") pie slices pop outward by on hover. Default "3px".
+     *
+     * Entrance animation tokens — emitted as CSS custom properties when `->animate()` is used:
+     *
+     * @param string $animationDuration `--svgraph-anim-dur`  CSS `<time>` for the animation (e.g. "0.6s"). Default "0.6s".
+     * @param string $animationEasing   `--svgraph-anim-ease` CSS easing function (e.g. "ease-out"). Default "ease-out".
      */
     public function __construct(
         public array $palette,
@@ -50,6 +55,8 @@ final readonly class Theme
         public string $hoverBrightness = '1.2',
         public string $hoverStrokeWidth = '1.5',
         public string $piePopDistance = '3px',
+        public string $animationDuration = '0.6s',
+        public string $animationEasing = 'ease-out',
     ) {}
 
     public static function default(): self
@@ -105,6 +112,8 @@ final readonly class Theme
             hoverBrightness: $this->hoverBrightness,
             hoverStrokeWidth: $this->hoverStrokeWidth,
             piePopDistance: $this->piePopDistance,
+            animationDuration: $this->animationDuration,
+            animationEasing: $this->animationEasing,
         );
     }
 
@@ -137,6 +146,8 @@ final readonly class Theme
             hoverBrightness: $this->hoverBrightness,
             hoverStrokeWidth: $this->hoverStrokeWidth,
             piePopDistance: $this->piePopDistance,
+            animationDuration: $this->animationDuration,
+            animationEasing: $this->animationEasing,
         );
     }
 
@@ -169,6 +180,39 @@ final readonly class Theme
             hoverBrightness: $brightness ?? $this->hoverBrightness,
             hoverStrokeWidth: $strokeWidth ?? $this->hoverStrokeWidth,
             piePopDistance: $piePopDistance ?? $this->piePopDistance,
+            animationDuration: $this->animationDuration,
+            animationEasing: $this->animationEasing,
+        );
+    }
+
+    /**
+     * Return a copy with different animation timing.
+     *
+     * The values are emitted as CSS custom properties on the wrapper element:
+     *   --svgraph-anim-dur, --svgraph-anim-ease
+     * You can also set these properties directly in your own CSS.
+     */
+    public function withAnimation(string $duration, string $easing = 'ease-out'): self
+    {
+        return new self(
+            palette: $this->palette,
+            stroke: $this->stroke,
+            strokeWidth: $this->strokeWidth,
+            fill: $this->fill,
+            textColor: $this->textColor,
+            fontFamily: $this->fontFamily,
+            fontSize: $this->fontSize,
+            gridColor: $this->gridColor,
+            axisColor: $this->axisColor,
+            trackColor: $this->trackColor,
+            tooltipBackground: $this->tooltipBackground,
+            tooltipTextColor: $this->tooltipTextColor,
+            tooltipBorderRadius: $this->tooltipBorderRadius,
+            hoverBrightness: $this->hoverBrightness,
+            hoverStrokeWidth: $this->hoverStrokeWidth,
+            piePopDistance: $this->piePopDistance,
+            animationDuration: $duration,
+            animationEasing: $easing,
         );
     }
 

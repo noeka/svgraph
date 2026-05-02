@@ -171,7 +171,7 @@ class LineChart extends AbstractChart
         }
 
         $lineD = $this->smooth ? Path::smoothLine($points) : Path::line($points);
-        $wrapper->add(Tag::void('path', [
+        $lineAttrs = [
             'd' => $lineD,
             'fill' => 'none',
             'stroke' => $stroke,
@@ -179,7 +179,13 @@ class LineChart extends AbstractChart
             'stroke-linecap' => 'round',
             'stroke-linejoin' => 'round',
             'vector-effect' => 'non-scaling-stroke',
-        ]));
+        ];
+        if ($this->animated) {
+            $lineAttrs['class'] = 'svgraph-line-path';
+            $lineAttrs['pathLength'] = '1';
+            $wrapper->enableAnimation();
+        }
+        $wrapper->add(Tag::void('path', $lineAttrs));
 
         if ($this->showPoints) {
             $chartId = $this->chartId();
