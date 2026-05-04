@@ -33,6 +33,7 @@
         "lint": "phpstan analyse",
         "cs": "php-cs-fixer check",
         "cs:fix": "php-cs-fixer fix",
-        "check": ["@lint", "@cs", "@test"]
+        "check": ["@lint", "@cs", "@test"],
+        "docs:images": "php examples/run.php"
     }
 }
