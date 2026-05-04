@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Noeka\Svgraph\Charts;
 
 use Noeka\Svgraph\Data\Series;
+use Noeka\Svgraph\Data\SeriesCollection;
 use Noeka\Svgraph\Geometry\Scale;
 use Noeka\Svgraph\Geometry\Viewport;
 use Noeka\Svgraph\Svg\Label;
@@ -14,7 +15,11 @@ use Noeka\Svgraph\Svg\Wrapper;
 
 class BarChart extends AbstractChart
 {
-    protected Series $series;
+    private const MODE_AUTO = 'auto';
+    private const MODE_GROUPED = 'grouped';
+    private const MODE_STACKED = 'stacked';
+
+    protected SeriesCollection $seriesCollection;
 
     protected ?string $color = null;
     protected float $gap = 0.2;
@@ -25,18 +30,32 @@ class BarChart extends AbstractChart
     protected int $tickCount = 5;
     protected bool $useColorPerBar = false;
 
+    protected string $mode = self::MODE_AUTO;
+
     public function __construct()
     {
         parent::__construct();
         $this->variantClass = 'bar';
         $this->aspectRatio = 2.0;
-        $this->series = new Series([]);
+        $this->seriesCollection = new SeriesCollection();
     }
 
     /** @param iterable<mixed> $data */
     public function data(iterable $data): static
     {
-        $this->series = Series::from($data);
+        $this->seriesCollection = new SeriesCollection([Series::from($data)]);
+        return $this;
+    }
+
+    /**
+     * Append a series. The first call to `data()` (or `addSeries()` on an
+     * empty chart) seeds series 0; subsequent `addSeries()` calls append.
+     * Multi-series charts default to grouped layout — call `stacked()` to
+     * stack bars instead.
+     */
+    public function addSeries(Series $series): static
+    {
+        $this->seriesCollection = $this->seriesCollection->with($series);
         return $this;
     }
 
@@ -48,6 +67,8 @@ class BarChart extends AbstractChart
 
     /**
      * Use the theme palette to color each bar individually.
+     * Only applies to single-series charts; multi-series charts already
+     * pick a per-series colour from the palette.
      */
     public function rainbow(bool $on = true): static
     {
@@ -94,9 +115,29 @@ class BarChart extends AbstractChart
         return $this;
     }
 
+    /**
+     * Place bars side-by-side per X tick across all series. Default for
+     * multi-series charts.
+     */
+    public function grouped(bool $on = true): static
+    {
+        $this->mode = $on ? self::MODE_GROUPED : self::MODE_AUTO;
+        return $this;
+    }
+
+    /**
+     * Stack bars atop each other per X tick. Y axis grows to the cumulative
+     * max sum, not the largest single value.
+     */
+    public function stacked(bool $on = true): static
+    {
+        $this->mode = $on ? self::MODE_STACKED : self::MODE_AUTO;
+        return $this;
+    }
+
     public function render(): string
     {
-        if ($this->series->isEmpty()) {
+        if ($this->seriesCollection->isEmpty()) {
             $viewport = new Viewport();
             $wrapper = new Wrapper($viewport, $this->aspectRatio, $this->variantClass, $this->theme);
             $wrapper->setUserClass($this->cssClass);
@@ -106,9 +147,27 @@ class BarChart extends AbstractChart
         return $this->horizontal ? $this->renderHorizontal() : $this->renderVertical();
     }
 
+    /**
+     * `auto` is grouped — single series naturally collapses into one bar
+     * per slot since the per-slot bar count equals the series count.
+     */
+    private function effectiveMode(): string
+    {
+        return $this->mode === self::MODE_AUTO ? self::MODE_GROUPED : $this->mode;
+    }
+
+    /**
+     * For animation staggering: index in the rendering order so visually
+     * adjacent bars wave in together.
+     */
+    private function staggerDelay(int $position): string
+    {
+        return (string) round($position * 0.08, 3);
+    }
+
     protected function renderVertical(): string
     {
-        $hasLabels = $this->series->hasLabels();
+        $hasLabels = $this->seriesCollection->hasLabels();
         $padTop = $this->showAxes || $this->showGrid ? 4.0 : 0.0;
         $padRight = $this->showAxes || $this->showGrid ? 2.0 : 0.0;
         $padBottom = $hasLabels ? ($this->showAxes ? 14.0 : 8.0) : 0.0;
@@ -118,21 +177,26 @@ class BarChart extends AbstractChart
         $wrapper = new Wrapper($viewport, $this->aspectRatio, $this->variantClass, $this->theme);
         $wrapper->setUserClass($this->cssClass);
 
-        $values = $this->series->values();
-        if ($values === []) {
+        $maxLen = $this->seriesCollection->maxLength();
+        if ($maxLen === 0) {
             return $wrapper->render();
         }
-        $count = count($values);
-        $max = max($values);
-        $min = min(0.0, min($values));
-        if ($min === $max) {
-            $max += 1.0;
+
+        $mode = $this->effectiveMode();
+        if ($mode === self::MODE_STACKED) {
+            $domainMin = min(0.0, $this->seriesCollection->stackedMin());
+            $domainMax = $this->seriesCollection->stackedMax();
+        } else {
+            $domainMin = min(0.0, $this->seriesCollection->valueMin());
+            $domainMax = $this->seriesCollection->valueMax();
+        }
+        if ($domainMin === $domainMax) {
+            $domainMax += 1.0;
         }
 
-        $yScale = Scale::linear($min, $max, $viewport->plotTop(), $viewport->plotBottom(), invert: true);
-        $slotWidth = $viewport->plotWidth() / $count;
-        $barWidth = $slotWidth * (1.0 - $this->gap);
-        $barOffset = ($slotWidth - $barWidth) / 2.0;
+        $yScale = Scale::linear($domainMin, $domainMax, $viewport->plotTop(), $viewport->plotBottom(), invert: true);
+        $slotWidth = $viewport->plotWidth() / $maxLen;
+        $baseY = $yScale->map(0.0);
 
         if ($this->showGrid) {
             foreach ($yScale->ticks($this->tickCount) as $tick) {
@@ -149,47 +213,15 @@ class BarChart extends AbstractChart
             }
         }
 
-        $chartId = $this->chartId();
-        $baseY = $yScale->map(0.0);
         $wrapper->markHasSeriesElements();
         if ($this->animated) {
             $wrapper->enableAnimation();
         }
-        foreach ($this->series->points as $i => $point) {
-            $value = $point->value;
-            $x = $viewport->plotLeft() + $i * $slotWidth + $barOffset;
-            $valueY = $yScale->map($value);
-            $top = min($baseY, $valueY);
-            $height = abs($valueY - $baseY);
-            $color = $this->useColorPerBar ? $this->theme->colorAt($i) : ($this->color ?? $this->theme->fill);
-            $seriesIndex = $this->useColorPerBar ? $i : 0;
-            $id = "{$chartId}-pt-{$i}";
-            $attrs = [
-                'class' => "series-{$seriesIndex}",
-                'x' => Tag::formatFloat($x),
-                'y' => Tag::formatFloat($top),
-                'width' => Tag::formatFloat($barWidth),
-                'height' => Tag::formatFloat($height),
-                'fill' => $color,
-            ];
-            if ($this->cornerRadius > 0.0) {
-                $attrs['rx'] = Tag::formatFloat($this->cornerRadius);
-                $attrs['ry'] = Tag::formatFloat($this->cornerRadius);
-            }
-            if ($this->animated) {
-                $tfo = $value >= 0.0 ? 'center bottom' : 'center top';
-                $delay = round($i * 0.08, 3);
-                $attrs['style'] = "--svgraph-bar-tfo:{$tfo};--svgraph-bar-delay:{$delay}s;";
-            }
-            $tipText = $this->tooltip($point->label, $value);
-            $rect = Tag::make('rect', $attrs)->append(Tag::make('title')->append($tipText));
-            $wrapper->add($this->buildLink($point->link, $id, $rect));
-            $wrapper->tooltip(new Tooltip(
-                id: $id,
-                text: Tag::escapeText($tipText),
-                leftPct: ($x + $barWidth / 2) / $viewport->width * 100,
-                topPct: $top / $viewport->height * 100,
-            ));
+
+        if ($mode === self::MODE_STACKED) {
+            $this->renderVerticalStacked($wrapper, $viewport, $yScale, $slotWidth, $baseY);
+        } else {
+            $this->renderVerticalGrouped($wrapper, $viewport, $yScale, $slotWidth, $baseY);
         }
 
         if ($this->showAxes) {
@@ -216,7 +248,7 @@ class BarChart extends AbstractChart
         }
 
         if ($hasLabels) {
-            foreach ($this->series->labels() as $i => $label) {
+            foreach ($this->seriesCollection->commonLabels() as $i => $label) {
                 if ($label === null || $label === '') {
                     continue;
                 }
@@ -234,9 +266,159 @@ class BarChart extends AbstractChart
         return $wrapper->render();
     }
 
+    private function renderVerticalGrouped(
+        Wrapper $wrapper,
+        Viewport $viewport,
+        Scale $yScale,
+        float $slotWidth,
+        float $baseY,
+    ): void {
+        $chartId = $this->chartId();
+        $seriesCount = $this->seriesCollection->count();
+        $groupWidth = $slotWidth * (1.0 - $this->gap);
+        $groupOffset = ($slotWidth - $groupWidth) / 2.0;
+        $barWidth = $groupWidth / $seriesCount;
+        $rainbowSingle = $seriesCount === 1 && $this->useColorPerBar;
+
+        $position = 0;
+        foreach ($this->seriesCollection->items as $j => $series) {
+            $seriesColor = $this->resolveSeriesColor($series, $j);
+            foreach ($series->points as $i => $point) {
+                $value = $point->value;
+                $slotX = $viewport->plotLeft() + $i * $slotWidth + $groupOffset;
+                $x = $slotX + $j * $barWidth;
+                $valueY = $yScale->map($value);
+                $top = min($baseY, $valueY);
+                $height = abs($valueY - $baseY);
+                [$color, $classIndex] = $rainbowSingle
+                    ? [$this->theme->colorAt($i), $i]
+                    : [$seriesColor, $j];
+                $id = "{$chartId}-s{$j}-pt-{$i}";
+                $tipText = $this->tooltip($this->labelFor($series, $point->label), $value);
+                $tfo = $value >= 0.0 ? 'center bottom' : 'center top';
+                $this->emitVerticalBar(
+                    $wrapper,
+                    $viewport,
+                    $id,
+                    $classIndex,
+                    $x,
+                    $top,
+                    $barWidth,
+                    $height,
+                    $color,
+                    $tipText,
+                    $point->link,
+                    $tfo,
+                    $position++,
+                );
+            }
+        }
+    }
+
+    private function renderVerticalStacked(
+        Wrapper $wrapper,
+        Viewport $viewport,
+        Scale $yScale,
+        float $slotWidth,
+        float $baseY,
+    ): void {
+        $chartId = $this->chartId();
+        $barWidth = $slotWidth * (1.0 - $this->gap);
+        $barOffset = ($slotWidth - $barWidth) / 2.0;
+        $maxLen = $this->seriesCollection->maxLength();
+
+        // Track running positive/negative tops per slot so each segment
+        // sits flush against the previous one.
+        $posCursor = array_fill(0, $maxLen, 0.0);
+        $negCursor = array_fill(0, $maxLen, 0.0);
+
+        $position = 0;
+        foreach ($this->seriesCollection->items as $j => $series) {
+            $color = $this->resolveSeriesColor($series, $j);
+            foreach ($series->points as $i => $point) {
+                $value = $point->value;
+                if ($value === 0.0) {
+                    continue;
+                }
+                $x = $viewport->plotLeft() + $i * $slotWidth + $barOffset;
+                if ($value > 0.0) {
+                    $bottomVal = $posCursor[$i];
+                    $topVal = $bottomVal + $value;
+                    $posCursor[$i] = $topVal;
+                } else {
+                    $topVal = $negCursor[$i];
+                    $bottomVal = $topVal + $value;
+                    $negCursor[$i] = $bottomVal;
+                }
+                $topY = $yScale->map(max($topVal, $bottomVal));
+                $bottomY = $yScale->map(min($topVal, $bottomVal));
+                $height = abs($bottomY - $topY);
+                $id = "{$chartId}-s{$j}-pt-{$i}";
+                $tipText = $this->tooltip($this->labelFor($series, $point->label), $value);
+                $tfo = $value >= 0.0 ? 'center bottom' : 'center top';
+                $this->emitVerticalBar(
+                    $wrapper,
+                    $viewport,
+                    $id,
+                    $j,
+                    $x,
+                    $topY,
+                    $barWidth,
+                    $height,
+                    $color,
+                    $tipText,
+                    $point->link,
+                    $tfo,
+                    $position++,
+                );
+            }
+        }
+    }
+
+    private function emitVerticalBar(
+        Wrapper $wrapper,
+        Viewport $viewport,
+        string $id,
+        int $seriesIndex,
+        float $x,
+        float $top,
+        float $width,
+        float $height,
+        string $color,
+        string $tipText,
+        ?\Noeka\Svgraph\Data\Link $link,
+        string $tfo,
+        int $stagger,
+    ): void {
+        $attrs = [
+            'class' => "series-{$seriesIndex}",
+            'x' => Tag::formatFloat($x),
+            'y' => Tag::formatFloat($top),
+            'width' => Tag::formatFloat($width),
+            'height' => Tag::formatFloat($height),
+            'fill' => $color,
+        ];
+        if ($this->cornerRadius > 0.0) {
+            $attrs['rx'] = Tag::formatFloat($this->cornerRadius);
+            $attrs['ry'] = Tag::formatFloat($this->cornerRadius);
+        }
+        if ($this->animated) {
+            $delay = $this->staggerDelay($stagger);
+            $attrs['style'] = "--svgraph-bar-tfo:{$tfo};--svgraph-bar-delay:{$delay}s;";
+        }
+        $rect = Tag::make('rect', $attrs)->append(Tag::make('title')->append($tipText));
+        $wrapper->add($this->buildLink($link, $id, $rect));
+        $wrapper->tooltip(new Tooltip(
+            id: $id,
+            text: Tag::escapeText($tipText),
+            leftPct: ($x + $width / 2) / $viewport->width * 100,
+            topPct: $top / $viewport->height * 100,
+        ));
+    }
+
     protected function renderHorizontal(): string
     {
-        $hasLabels = $this->series->hasLabels();
+        $hasLabels = $this->seriesCollection->hasLabels();
         $padTop = 2.0;
         $padRight = $this->showAxes ? 6.0 : 2.0;
         $padBottom = $this->showAxes ? 8.0 : 2.0;
@@ -246,21 +428,26 @@ class BarChart extends AbstractChart
         $wrapper = new Wrapper($viewport, $this->aspectRatio, $this->variantClass, $this->theme);
         $wrapper->setUserClass($this->cssClass);
 
-        $values = $this->series->values();
-        if ($values === []) {
+        $maxLen = $this->seriesCollection->maxLength();
+        if ($maxLen === 0) {
             return $wrapper->render();
         }
-        $count = count($values);
-        $max = max($values);
-        $min = min(0.0, min($values));
-        if ($min === $max) {
-            $max += 1.0;
+
+        $mode = $this->effectiveMode();
+        if ($mode === self::MODE_STACKED) {
+            $domainMin = min(0.0, $this->seriesCollection->stackedMin());
+            $domainMax = $this->seriesCollection->stackedMax();
+        } else {
+            $domainMin = min(0.0, $this->seriesCollection->valueMin());
+            $domainMax = $this->seriesCollection->valueMax();
+        }
+        if ($domainMin === $domainMax) {
+            $domainMax += 1.0;
         }
 
-        $xScale = Scale::linear($min, $max, $viewport->plotLeft(), $viewport->plotRight());
-        $slotHeight = $viewport->plotHeight() / $count;
-        $barHeight = $slotHeight * (1.0 - $this->gap);
-        $barOffset = ($slotHeight - $barHeight) / 2.0;
+        $xScale = Scale::linear($domainMin, $domainMax, $viewport->plotLeft(), $viewport->plotRight());
+        $slotHeight = $viewport->plotHeight() / $maxLen;
+        $baseX = $xScale->map(0.0);
 
         if ($this->showGrid) {
             foreach ($xScale->ticks($this->tickCount) as $tick) {
@@ -277,52 +464,20 @@ class BarChart extends AbstractChart
             }
         }
 
-        $chartId = $this->chartId();
-        $baseX = $xScale->map(0.0);
         $wrapper->markHasSeriesElements();
         if ($this->animated) {
             $wrapper->enableAnimation();
             $wrapper->setSecondaryVariant('bar-h');
         }
-        foreach ($this->series->points as $i => $point) {
-            $value = $point->value;
-            $y = $viewport->plotTop() + $i * $slotHeight + $barOffset;
-            $valueX = $xScale->map($value);
-            $left = min($baseX, $valueX);
-            $width = abs($valueX - $baseX);
-            $color = $this->useColorPerBar ? $this->theme->colorAt($i) : ($this->color ?? $this->theme->fill);
-            $seriesIndex = $this->useColorPerBar ? $i : 0;
-            $id = "{$chartId}-pt-{$i}";
-            $attrs = [
-                'class' => "series-{$seriesIndex}",
-                'x' => Tag::formatFloat($left),
-                'y' => Tag::formatFloat($y),
-                'width' => Tag::formatFloat($width),
-                'height' => Tag::formatFloat($barHeight),
-                'fill' => $color,
-            ];
-            if ($this->cornerRadius > 0.0) {
-                $attrs['rx'] = Tag::formatFloat($this->cornerRadius);
-                $attrs['ry'] = Tag::formatFloat($this->cornerRadius);
-            }
-            if ($this->animated) {
-                $tfo = $value >= 0.0 ? 'left center' : 'right center';
-                $delay = round($i * 0.08, 3);
-                $attrs['style'] = "--svgraph-bar-tfo:{$tfo};--svgraph-bar-delay:{$delay}s;";
-            }
-            $tipText = $this->tooltip($point->label, $value);
-            $rect = Tag::make('rect', $attrs)->append(Tag::make('title')->append($tipText));
-            $wrapper->add($this->buildLink($point->link, $id, $rect));
-            $wrapper->tooltip(new Tooltip(
-                id: $id,
-                text: Tag::escapeText($tipText),
-                leftPct: ($left + $width) / $viewport->width * 100,
-                topPct: ($y + $barHeight / 2) / $viewport->height * 100,
-            ));
+
+        if ($mode === self::MODE_STACKED) {
+            $this->renderHorizontalStacked($wrapper, $viewport, $xScale, $slotHeight, $baseX);
+        } else {
+            $this->renderHorizontalGrouped($wrapper, $viewport, $xScale, $slotHeight, $baseX);
         }
 
         if ($hasLabels) {
-            foreach ($this->series->labels() as $i => $label) {
+            foreach ($this->seriesCollection->commonLabels() as $i => $label) {
                 if ($label === null || $label === '') {
                     continue;
                 }
@@ -351,5 +506,179 @@ class BarChart extends AbstractChart
         }
 
         return $wrapper->render();
+    }
+
+    private function renderHorizontalGrouped(
+        Wrapper $wrapper,
+        Viewport $viewport,
+        Scale $xScale,
+        float $slotHeight,
+        float $baseX,
+    ): void {
+        $chartId = $this->chartId();
+        $seriesCount = $this->seriesCollection->count();
+        $groupHeight = $slotHeight * (1.0 - $this->gap);
+        $groupOffset = ($slotHeight - $groupHeight) / 2.0;
+        $barHeight = $groupHeight / $seriesCount;
+        $rainbowSingle = $seriesCount === 1 && $this->useColorPerBar;
+
+        $position = 0;
+        foreach ($this->seriesCollection->items as $j => $series) {
+            $seriesColor = $this->resolveSeriesColor($series, $j);
+            foreach ($series->points as $i => $point) {
+                $value = $point->value;
+                $slotY = $viewport->plotTop() + $i * $slotHeight + $groupOffset;
+                $y = $slotY + $j * $barHeight;
+                $valueX = $xScale->map($value);
+                $left = min($baseX, $valueX);
+                $width = abs($valueX - $baseX);
+                [$color, $classIndex] = $rainbowSingle
+                    ? [$this->theme->colorAt($i), $i]
+                    : [$seriesColor, $j];
+                $id = "{$chartId}-s{$j}-pt-{$i}";
+                $tipText = $this->tooltip($this->labelFor($series, $point->label), $value);
+                $tfo = $value >= 0.0 ? 'left center' : 'right center';
+                $this->emitHorizontalBar(
+                    $wrapper,
+                    $viewport,
+                    $id,
+                    $classIndex,
+                    $left,
+                    $y,
+                    $width,
+                    $barHeight,
+                    $color,
+                    $tipText,
+                    $point->link,
+                    $tfo,
+                    $position++,
+                );
+            }
+        }
+    }
+
+    private function renderHorizontalStacked(
+        Wrapper $wrapper,
+        Viewport $viewport,
+        Scale $xScale,
+        float $slotHeight,
+        float $baseX,
+    ): void {
+        $chartId = $this->chartId();
+        $barHeight = $slotHeight * (1.0 - $this->gap);
+        $barOffset = ($slotHeight - $barHeight) / 2.0;
+        $maxLen = $this->seriesCollection->maxLength();
+
+        $posCursor = array_fill(0, $maxLen, 0.0);
+        $negCursor = array_fill(0, $maxLen, 0.0);
+
+        $position = 0;
+        foreach ($this->seriesCollection->items as $j => $series) {
+            $color = $this->resolveSeriesColor($series, $j);
+            foreach ($series->points as $i => $point) {
+                $value = $point->value;
+                if ($value === 0.0) {
+                    continue;
+                }
+                $y = $viewport->plotTop() + $i * $slotHeight + $barOffset;
+                if ($value > 0.0) {
+                    $startVal = $posCursor[$i];
+                    $endVal = $startVal + $value;
+                    $posCursor[$i] = $endVal;
+                } else {
+                    $endVal = $negCursor[$i];
+                    $startVal = $endVal + $value;
+                    $negCursor[$i] = $startVal;
+                }
+                $leftX = $xScale->map(min($startVal, $endVal));
+                $rightX = $xScale->map(max($startVal, $endVal));
+                $width = abs($rightX - $leftX);
+                $id = "{$chartId}-s{$j}-pt-{$i}";
+                $tipText = $this->tooltip($this->labelFor($series, $point->label), $value);
+                $tfo = $value >= 0.0 ? 'left center' : 'right center';
+                $this->emitHorizontalBar(
+                    $wrapper,
+                    $viewport,
+                    $id,
+                    $j,
+                    $leftX,
+                    $y,
+                    $width,
+                    $barHeight,
+                    $color,
+                    $tipText,
+                    $point->link,
+                    $tfo,
+                    $position++,
+                );
+            }
+        }
+    }
+
+    private function emitHorizontalBar(
+        Wrapper $wrapper,
+        Viewport $viewport,
+        string $id,
+        int $seriesIndex,
+        float $left,
+        float $y,
+        float $width,
+        float $height,
+        string $color,
+        string $tipText,
+        ?\Noeka\Svgraph\Data\Link $link,
+        string $tfo,
+        int $stagger,
+    ): void {
+        $attrs = [
+            'class' => "series-{$seriesIndex}",
+            'x' => Tag::formatFloat($left),
+            'y' => Tag::formatFloat($y),
+            'width' => Tag::formatFloat($width),
+            'height' => Tag::formatFloat($height),
+            'fill' => $color,
+        ];
+        if ($this->cornerRadius > 0.0) {
+            $attrs['rx'] = Tag::formatFloat($this->cornerRadius);
+            $attrs['ry'] = Tag::formatFloat($this->cornerRadius);
+        }
+        if ($this->animated) {
+            $delay = $this->staggerDelay($stagger);
+            $attrs['style'] = "--svgraph-bar-tfo:{$tfo};--svgraph-bar-delay:{$delay}s;";
+        }
+        $rect = Tag::make('rect', $attrs)->append(Tag::make('title')->append($tipText));
+        $wrapper->add($this->buildLink($link, $id, $rect));
+        $wrapper->tooltip(new Tooltip(
+            id: $id,
+            text: Tag::escapeText($tipText),
+            leftPct: ($left + $width) / $viewport->width * 100,
+            topPct: ($y + $height / 2) / $viewport->height * 100,
+        ));
+    }
+
+    /**
+     * Per-series color: explicit Series->color wins, then chart-level
+     * `->color()` for series 0 (so single-series `Chart::bar()->color()`
+     * stays ergonomic), then the theme palette.
+     */
+    private function resolveSeriesColor(Series $series, int $index): string
+    {
+        if ($series->color !== null) {
+            return $series->color;
+        }
+        if ($index === 0 && $this->color !== null) {
+            return $this->color;
+        }
+        return $this->theme->colorAt($index);
+    }
+
+    private function labelFor(Series $series, ?string $pointLabel): ?string
+    {
+        if ($series->name !== '') {
+            return $pointLabel === null || $pointLabel === ''
+                ? $series->name
+                : "{$series->name} — {$pointLabel}";
+        }
+        return $pointLabel;
     }
 }

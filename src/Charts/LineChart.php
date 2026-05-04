@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Noeka\Svgraph\Charts;
 
 use Noeka\Svgraph\Data\Series;
+use Noeka\Svgraph\Data\SeriesCollection;
 use Noeka\Svgraph\Geometry\Path;
 use Noeka\Svgraph\Geometry\Scale;
 use Noeka\Svgraph\Geometry\Viewport;
@@ -15,7 +16,7 @@ use Noeka\Svgraph\Svg\Wrapper;
 
 class LineChart extends AbstractChart
 {
-    protected Series $series;
+    protected SeriesCollection $seriesCollection;
 
     protected ?string $strokeColor = null;
     protected ?float $strokeWidth = null;
@@ -35,13 +36,13 @@ class LineChart extends AbstractChart
     {
         parent::__construct();
         $this->variantClass = 'line';
-        $this->series = new Series([]);
+        $this->seriesCollection = new SeriesCollection();
     }
 
     /** @param iterable<mixed> $data */
     public function series(iterable $data): static
     {
-        $this->series = Series::from($data);
+        $this->seriesCollection = new SeriesCollection([Series::from($data)]);
         return $this;
     }
 
@@ -49,6 +50,16 @@ class LineChart extends AbstractChart
     public function data(iterable $data): static
     {
         return $this->series($data);
+    }
+
+    /**
+     * Append a series. Combine with `data()` (which sets the first) or call
+     * `addSeries()` repeatedly to build up the chart series-by-series.
+     */
+    public function addSeries(Series $series): static
+    {
+        $this->seriesCollection = $this->seriesCollection->with($series);
+        return $this;
     }
 
     public function stroke(string $color, ?float $width = null): static
@@ -106,11 +117,11 @@ class LineChart extends AbstractChart
 
     public function render(): string
     {
-        if ($this->series->isEmpty()) {
+        if ($this->seriesCollection->isEmpty()) {
             return $this->renderEmpty();
         }
 
-        $hasLabels = $this->series->hasLabels();
+        $hasLabels = $this->seriesCollection->hasLabels();
         $padTop = $this->showAxes || $this->showGrid ? 4.0 : 0.0;
         $padRight = $this->showAxes || $this->showGrid ? 2.0 : 0.0;
         $padBottom = $hasLabels && ($this->showAxes || $this->showGrid) ? 14.0 : 0.0;
@@ -118,13 +129,13 @@ class LineChart extends AbstractChart
 
         $viewport = new Viewport(100, 100, $padTop, $padRight, $padBottom, $padLeft);
 
-        $values = $this->series->values();
-        if ($values === []) {
+        $maxLen = $this->seriesCollection->maxLength();
+        if ($maxLen === 0) {
             return $this->renderEmpty();
         }
-        $count = count($values);
-        $min = min($values);
-        $max = max($values);
+
+        $min = $this->seriesCollection->valueMin();
+        $max = $this->seriesCollection->valueMax();
         if ($min === $max) {
             $min -= 1.0;
             $max += 1.0;
@@ -133,17 +144,10 @@ class LineChart extends AbstractChart
         $domainMin = $min - $padding;
         $domainMax = $max + $padding;
 
-        $xScale = Scale::linear(0, max(1, $count - 1), $viewport->plotLeft(), $viewport->plotRight());
+        $xScale = Scale::linear(0, max(1, $maxLen - 1), $viewport->plotLeft(), $viewport->plotRight());
         $yScale = Scale::linear($domainMin, $domainMax, $viewport->plotTop(), $viewport->plotBottom(), invert: true);
 
-        $points = [];
-        foreach ($values as $i => $v) {
-            $points[] = [$xScale->map((float) $i), $yScale->map($v)];
-        }
-
-        $stroke = $this->strokeColor ?? $this->theme->stroke;
         $strokeWidth = $this->strokeWidth ?? $this->theme->strokeWidth;
-        $fillColor = $this->fillColor ?? $stroke;
 
         $wrapper = new Wrapper($viewport, $this->aspectRatio, $this->variantClass, $this->theme);
         $wrapper->setUserClass($this->cssClass);
@@ -160,9 +164,45 @@ class LineChart extends AbstractChart
             }
         }
 
+        if ($this->animated) {
+            $wrapper->enableAnimation();
+        }
+
+        foreach ($this->seriesCollection->items as $i => $series) {
+            $this->renderSeries($wrapper, $series, $i, $xScale, $yScale, $viewport, $strokeWidth);
+        }
+
+        if ($this->showAxes) {
+            $this->addLabels($wrapper, $xScale, $yScale);
+        }
+
+        return $wrapper->render();
+    }
+
+    private function renderSeries(
+        Wrapper $wrapper,
+        Series $series,
+        int $index,
+        Scale $xScale,
+        Scale $yScale,
+        Viewport $viewport,
+        float $strokeWidth,
+    ): void {
+        if ($series->isEmpty()) {
+            return;
+        }
+
+        $color = $this->resolveColor($series, $index);
+        $points = [];
+        foreach ($series->values as $i => $v) {
+            $points[] = [$xScale->map((float) $i), $yScale->map($v)];
+        }
+
         if ($this->fillEnabled) {
+            $fillColor = $this->fillColor ?? $color;
             $areaD = Path::area($points, $viewport->plotBottom(), $this->smooth);
             $wrapper->add(Tag::void('path', [
+                'class' => "series-{$index}",
                 'd' => $areaD,
                 'fill' => $fillColor,
                 'fill-opacity' => Tag::formatFloat($this->fillOpacity),
@@ -172,71 +212,108 @@ class LineChart extends AbstractChart
 
         $lineD = $this->smooth ? Path::smoothLine($points) : Path::line($points);
         $lineAttrs = [
+            'class' => "series-{$index}",
             'd' => $lineD,
             'fill' => 'none',
-            'stroke' => $stroke,
+            'stroke' => $color,
             'stroke-width' => Tag::formatFloat($strokeWidth),
             'stroke-linecap' => 'round',
             'stroke-linejoin' => 'round',
             'vector-effect' => 'non-scaling-stroke',
         ];
         if ($this->animated) {
-            $lineAttrs['class'] = 'svgraph-line-path';
+            $lineAttrs['class'] = "series-{$index} svgraph-line-path";
             $lineAttrs['pathLength'] = '1';
-            $wrapper->enableAnimation();
         }
         $wrapper->add(Tag::void('path', $lineAttrs));
 
         if ($this->showPoints) {
-            $chartId = $this->chartId();
-            $r = $strokeWidth * 0.6;
-            $rx = $r / max(0.01, $this->aspectRatio);
-            $hitR = max(4.0, $r * 2);
-            $hitRx = $hitR / max(0.01, $this->aspectRatio);
-            $wrapper->markHasSeriesElements();
-            foreach ($points as $i => [$x, $y]) {
-                $p = $this->series->points[$i];
-                $id = "{$chartId}-pt-{$i}";
-                $tipText = $this->tooltip($p->label, $p->value);
-                $hasLink = $p->link !== null;
-                // Wrap visual marker + transparent hit target in a <g> so that
-                // CSS :hover/:focus-within on the group can highlight the visual
-                // ellipse even though the (larger) hit target intercepts events.
-                $group = Tag::make('g', ['class' => 'series-0']);
-                $group->append(Tag::make('ellipse', [
-                    'cx' => Tag::formatFloat($x),
-                    'cy' => Tag::formatFloat($y),
-                    'rx' => Tag::formatFloat($rx),
-                    'ry' => Tag::formatFloat($r),
-                    'fill' => $stroke,
-                ])->append(Tag::make('title')->append($tipText)));
-                // Transparent hit target — larger than the visual dot for easier hover/focus.
-                // When linked, the <a> carries id/tabindex; otherwise they live here.
-                $hitAttrs = [
-                    'id' => $hasLink ? null : $id,
-                    'cx' => Tag::formatFloat($x),
-                    'cy' => Tag::formatFloat($y),
-                    'rx' => Tag::formatFloat($hitRx),
-                    'ry' => Tag::formatFloat($hitR),
-                    'fill' => 'transparent',
-                    'tabindex' => $hasLink ? null : '0',
-                ];
-                $group->append(Tag::make('ellipse', $hitAttrs)->append(Tag::make('title')->append($tipText)));
-                $wrapper->add($hasLink ? $this->buildLink($p->link, $id, $group) : $group);
-                $wrapper->tooltip(new Tooltip(
-                    id: $id,
-                    text: Tag::escapeText($tipText),
-                    leftPct: $x / $viewport->width * 100,
-                    topPct: $y / $viewport->height * 100,
-                ));
-            }
+            $this->renderMarkers($wrapper, $series, $index, $points, $color, $strokeWidth, $viewport);
         }
+    }
 
-        if ($this->showAxes) {
-            $this->addLabels($wrapper, $xScale, $yScale);
+    /**
+     * @param list<array{0: float, 1: float}> $points
+     */
+    private function renderMarkers(
+        Wrapper $wrapper,
+        Series $series,
+        int $index,
+        array $points,
+        string $color,
+        float $strokeWidth,
+        Viewport $viewport,
+    ): void {
+        $chartId = $this->chartId();
+        $r = $strokeWidth * 0.6;
+        $rx = $r / max(0.01, $this->aspectRatio);
+        $hitR = max(4.0, $r * 2);
+        $hitRx = $hitR / max(0.01, $this->aspectRatio);
+        $wrapper->markHasSeriesElements();
+
+        foreach ($points as $i => [$x, $y]) {
+            $p = $series->points[$i];
+            $id = "{$chartId}-s{$index}-pt-{$i}";
+            $tipText = $this->tooltip($this->labelFor($series, $p->label), $p->value);
+            $hasLink = $p->link !== null;
+            // Wrap visual marker + transparent hit target in a <g> so that
+            // CSS :hover/:focus-within on the group can highlight the visual
+            // ellipse even though the (larger) hit target intercepts events.
+            $group = Tag::make('g', ['class' => "series-{$index}"]);
+            $group->append(Tag::make('ellipse', [
+                'cx' => Tag::formatFloat($x),
+                'cy' => Tag::formatFloat($y),
+                'rx' => Tag::formatFloat($rx),
+                'ry' => Tag::formatFloat($r),
+                'fill' => $color,
+            ])->append(Tag::make('title')->append($tipText)));
+            $hitAttrs = [
+                'id' => $hasLink ? null : $id,
+                'cx' => Tag::formatFloat($x),
+                'cy' => Tag::formatFloat($y),
+                'rx' => Tag::formatFloat($hitRx),
+                'ry' => Tag::formatFloat($hitR),
+                'fill' => 'transparent',
+                'tabindex' => $hasLink ? null : '0',
+            ];
+            $group->append(Tag::make('ellipse', $hitAttrs)->append(Tag::make('title')->append($tipText)));
+            $wrapper->add($hasLink ? $this->buildLink($p->link, $id, $group) : $group);
+            $wrapper->tooltip(new Tooltip(
+                id: $id,
+                text: Tag::escapeText($tipText),
+                leftPct: $x / $viewport->width * 100,
+                topPct: $y / $viewport->height * 100,
+            ));
         }
+    }
 
-        return $wrapper->render();
+    /**
+     * Per-series color: explicit Series->color wins, then `->stroke()` for
+     * series 0 (the chart-level shortcut), then the theme palette.
+     */
+    private function resolveColor(Series $series, int $index): string
+    {
+        if ($series->color !== null) {
+            return $series->color;
+        }
+        if ($index === 0 && $this->strokeColor !== null) {
+            return $this->strokeColor;
+        }
+        return $this->theme->colorAt($index);
+    }
+
+    /**
+     * Prefix tooltip with the series name when set so multi-series points
+     * can be told apart.
+     */
+    private function labelFor(Series $series, ?string $pointLabel): ?string
+    {
+        if ($series->name === '') {
+            return $pointLabel;
+        }
+        return $pointLabel === null || $pointLabel === ''
+            ? $series->name
+            : "{$series->name} — {$pointLabel}";
     }
 
     /**
@@ -300,8 +377,7 @@ class LineChart extends AbstractChart
             ));
         }
 
-        $labels = $this->series->labels();
-        foreach ($labels as $i => $label) {
+        foreach ($this->seriesCollection->commonLabels() as $i => $label) {
             if ($label === null || $label === '') {
                 continue;
             }

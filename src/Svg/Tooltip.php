@@ -17,7 +17,8 @@ final class Tooltip
 {
     /**
      * @param string $id      The `id` attribute value on the corresponding SVG element.
-     *                        Format: `svgraph-{chartId}-pt-{i}`.
+     *                        Format: `svgraph-{chartId}-s{j}-pt-{i}` for series-based charts,
+     *                        `svgraph-{chartId}-pt-{i}` for slice/progress charts.
      * @param string $text    Already-HTML-escaped tooltip text to display.
      * @param float  $leftPct Left anchor as a percentage of the wrapper width.
      * @param float  $topPct  Top anchor as a percentage of the wrapper height.

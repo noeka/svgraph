@@ -120,7 +120,7 @@ final class AnimationTest extends TestCase
     public function test_line_animation_adds_line_path_class(): void
     {
         $svg = Chart::line([1, 2, 3])->animate()->render();
-        self::assertStringContainsString('class="svgraph-line-path"', $svg);
+        self::assertMatchesRegularExpression('/class="[^"]*svgraph-line-path[^"]*"/', $svg);
     }
 
     public function test_line_animation_targets_correct_variant_class(): void
