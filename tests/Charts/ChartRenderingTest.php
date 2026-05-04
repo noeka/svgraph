@@ -438,10 +438,10 @@ final class ChartRenderingTest extends TestCase
     {
         $svg = Chart::bar(['X' => 5])->render();
 
-        // Element IDs follow the format svgraph-{n}-pt-{i}.
-        self::assertMatchesRegularExpression('/id="svgraph-\d+-pt-0"/', $svg);
-        self::assertMatchesRegularExpression('/data-for="svgraph-\d+-pt-0"/', $svg);
-        self::assertMatchesRegularExpression('/#svgraph-\d+-pt-0:hover/', $svg);
+        // Element IDs follow the format svgraph-{n}-s{j}-pt-{i}.
+        self::assertMatchesRegularExpression('/id="svgraph-\d+-s0-pt-0"/', $svg);
+        self::assertMatchesRegularExpression('/data-for="svgraph-\d+-s0-pt-0"/', $svg);
+        self::assertMatchesRegularExpression('/#svgraph-\d+-s0-pt-0:hover/', $svg);
     }
 
     public function test_data_elements_have_tabindex(): void
@@ -555,7 +555,8 @@ final class ChartRenderingTest extends TestCase
     {
         $svg = Chart::line([10, 20, 30])->points()->render();
 
-        self::assertSame(3, substr_count($svg, 'class="series-0"'));
+        // 1 line path + 3 marker groups, all carrying series-0.
+        self::assertSame(4, substr_count($svg, 'class="series-0"'));
         // Ellipses must be nested inside <g> elements.
         self::assertMatchesRegularExpression('/<g class="series-0">.*<ellipse/s', $svg);
     }
@@ -655,9 +656,9 @@ final class ChartRenderingTest extends TestCase
         ])->render();
 
         // Linked: ID on <a>, no tabindex on rect.
-        self::assertMatchesRegularExpression('/<a[^>]+id="svgraph-\d+-pt-0"/', $svg);
+        self::assertMatchesRegularExpression('/<a[^>]+id="svgraph-\d+-s0-pt-0"/', $svg);
         // Non-linked: ID on rect itself.
-        self::assertMatchesRegularExpression('/<rect[^>]+id="svgraph-\d+-pt-1"/', $svg);
+        self::assertMatchesRegularExpression('/<rect[^>]+id="svgraph-\d+-s0-pt-1"/', $svg);
     }
 
     public function test_bar_linked_anchor_with_blank_target_gets_noopener_rel(): void

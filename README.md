@@ -95,6 +95,40 @@ Chart::bar($data)->horizontal()->rainbow()->rounded(1)
 | `->axes()` | Show axis line and tick labels |
 | `->grid()` | Show grid lines |
 
+### Multi-series
+
+Line and bar charts accept multiple series. Each series carries its own
+optional name and colour, and the y-axis auto-extends to fit them all.
+
+```php
+use Noeka\Svgraph\Chart;
+use Noeka\Svgraph\Data\Series;
+
+// Two-line chart, distinct colours, hover tooltips include the series name.
+Chart::line(['Jan' => 12, 'Feb' => 27, 'Mar' => 18])
+    ->addSeries(Series::of('Costs', ['Jan' => 6, 'Feb' => 14, 'Mar' => 9], '#ef4444'))
+    ->axes()->grid()->points()
+```
+
+For bar charts, two extra modes pick how multiple series share each x-tick:
+
+```php
+// Grouped (default for multi-series): bars sit side-by-side per slot.
+Chart::bar(['Q1' => 10, 'Q2' => 20])
+    ->addSeries(Series::of('Costs', ['Q1' => 5, 'Q2' => 8]))
+    ->grouped()
+    ->axes()
+
+// Stacked: bars stack atop each other; y-axis grows to the cumulative sum.
+Chart::bar(['Q1' => 10, 'Q2' => 20])
+    ->addSeries(Series::of('Costs', ['Q1' => 5, 'Q2' => 8]))
+    ->stacked()
+    ->axes()
+```
+
+Each rendered shape carries a `.series-{N}` class so external CSS can target
+individual series.
+
 ### Pie
 
 ```php

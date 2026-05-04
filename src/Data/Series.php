@@ -4,17 +4,67 @@ declare(strict_types=1);
 
 namespace Noeka\Svgraph\Data;
 
+/**
+ * One data series. Carries optional metadata (`name`, `color`) so multi-series
+ * charts can label and theme each series independently.
+ *
+ * Aggregates (values/min/max/sum) are computed once at construction so the
+ * render path can read them without re-walking `points`.
+ */
 final readonly class Series implements \Countable
 {
     /** @var list<Point> */
     public array $points;
 
+    /** @var list<float> */
+    public array $values;
+
+    public float $min;
+    public float $max;
+    public float $sum;
+
     /**
      * @param list<Point> $points
      */
-    public function __construct(array $points)
-    {
+    public function __construct(
+        array $points,
+        public string $name = '',
+        public ?string $color = null,
+    ) {
         $this->points = $points;
+
+        $values = [];
+        $min = INF;
+        $max = -INF;
+        $sum = 0.0;
+        foreach ($points as $p) {
+            $v = $p->value;
+            $values[] = $v;
+            if ($v < $min) {
+                $min = $v;
+            }
+            if ($v > $max) {
+                $max = $v;
+            }
+            $sum += $v;
+        }
+        $this->values = $values;
+        $this->min = $values === [] ? 0.0 : $min;
+        $this->max = $values === [] ? 0.0 : $max;
+        $this->sum = $sum;
+    }
+
+    /**
+     * Normalise the input shapes accepted by Series::from() and attach a name
+     * and optional color. Convenience for fluent builders:
+     *
+     *   $chart->addSeries(Series::of('Revenue', $data, '#3b82f6'));
+     *
+     * @param iterable<mixed> $data
+     */
+    public static function of(string $name, iterable $data, ?string $color = null): self
+    {
+        return new self(self::normalise($data), $name, $color);
     }
 
     /**
@@ -32,6 +82,15 @@ final readonly class Series implements \Countable
      * @param iterable<mixed> $input
      */
     public static function from(iterable $input): self
+    {
+        return new self(self::normalise($input));
+    }
+
+    /**
+     * @param iterable<mixed> $input
+     * @return list<Point>
+     */
+    private static function normalise(iterable $input): array
     {
         $points = [];
         foreach ($input as $key => $value) {
@@ -57,7 +116,7 @@ final readonly class Series implements \Countable
             }
             $points[] = new Point($val, is_string($key) ? $key : null);
         }
-        return new self($points);
+        return $points;
     }
 
     private static function toFloat(mixed $v): float
@@ -73,6 +132,16 @@ final readonly class Series implements \Countable
         return is_scalar($v) ? (string) $v : null;
     }
 
+    public function withName(string $name): self
+    {
+        return new self($this->points, $name, $this->color);
+    }
+
+    public function withColor(?string $color): self
+    {
+        return new self($this->points, $this->name, $color);
+    }
+
     public function count(): int
     {
         return count($this->points);
@@ -85,25 +154,23 @@ final readonly class Series implements \Countable
 
     public function min(): float
     {
-        $values = array_map(static fn(Point $p) => $p->value, $this->points);
-        return $values !== [] ? min($values) : 0.0;
+        return $this->min;
     }
 
     public function max(): float
     {
-        $values = array_map(static fn(Point $p) => $p->value, $this->points);
-        return $values !== [] ? max($values) : 0.0;
+        return $this->max;
     }
 
     public function sum(): float
     {
-        return array_sum(array_map(static fn(Point $p) => $p->value, $this->points));
+        return $this->sum;
     }
 
     /** @return list<float> */
     public function values(): array
     {
-        return array_map(static fn(Point $p) => $p->value, $this->points);
+        return $this->values;
     }
 
     /** @return list<string|null> */
