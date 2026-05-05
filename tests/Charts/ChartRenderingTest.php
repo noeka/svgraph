@@ -543,14 +543,6 @@ final class ChartRenderingTest extends TestCase
         self::assertStringContainsString('class="series-0"', $svg);
     }
 
-    public function test_pie_slices_have_pop_vector_inline_vars(): void
-    {
-        $svg = Chart::pie(['A' => 1, 'B' => 1])->render();
-
-        // Each slice path must carry --pop-x and --pop-y in its style attribute.
-        self::assertMatchesRegularExpression('/style="--pop-x:[^"]+--pop-y:[^"]+"/', $svg);
-    }
-
     public function test_line_marker_groups_have_series_class(): void
     {
         $svg = Chart::line([10, 20, 30])->points()->render();
@@ -569,24 +561,6 @@ final class ChartRenderingTest extends TestCase
         self::assertStringContainsString('--svgraph-hover-stroke-width', $svg);
     }
 
-    public function test_pie_chart_emits_pop_style_rules(): void
-    {
-        $svg = Chart::pie(['A' => 1, 'B' => 1])->render();
-
-        self::assertStringContainsString('--svgraph-pie-pop-distance', $svg);
-        self::assertStringContainsString('--pop-x', $svg);
-        self::assertStringContainsString('--pop-y', $svg);
-    }
-
-    public function test_hover_style_honours_prefers_reduced_motion(): void
-    {
-        $svg = Chart::pie(['A' => 1, 'B' => 1])->render();
-
-        self::assertStringContainsString('prefers-reduced-motion', $svg);
-        // The reduced-motion block must suppress the transform.
-        self::assertMatchesRegularExpression('/prefers-reduced-motion[^}]+\{[^}]*transform:none/', $svg);
-    }
-
     public function test_hover_css_custom_properties_on_wrapper(): void
     {
         $svg = Chart::bar(['A' => 1])->render();
@@ -603,7 +577,7 @@ final class ChartRenderingTest extends TestCase
 
         self::assertStringContainsString('--svgraph-hover-brightness:1.5', $svg);
         self::assertStringContainsString('--svgraph-hover-stroke-width:2', $svg);
-        self::assertStringContainsString('--svgraph-pie-pop-distance:5px', $svg);
+        self::assertStringContainsString('--svgraph-pie-pop-distance:5px', $svg); // custom property still emitted on wrapper
     }
 
     public function test_line_without_points_emits_no_hover_style(): void
@@ -621,13 +595,12 @@ final class ChartRenderingTest extends TestCase
         self::assertSame(2, substr_count($svg, 'class="series-0"'));
     }
 
-    public function test_donut_slices_have_series_class_and_pop_vars(): void
+    public function test_donut_slices_have_series_class(): void
     {
         $svg = Chart::donut(['X' => 3, 'Y' => 1])->render();
 
         self::assertStringContainsString('class="series-0"', $svg);
         self::assertStringContainsString('class="series-1"', $svg);
-        self::assertStringContainsString('--pop-x:', $svg);
     }
 
     // ── Click-through link tests (issue #7) ──────────────────────────────────

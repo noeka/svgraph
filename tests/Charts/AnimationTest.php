@@ -233,22 +233,18 @@ final class AnimationTest extends TestCase
         self::assertGreaterThanOrEqual(3, substr_count($svg, '<circle '));
     }
 
-    public function test_pie_animation_circles_have_stroke_dasharray(): void
+    public function test_pie_animation_circles_start_hidden(): void
     {
+        // Initial stroke-dasharray must be "0 {circumference}" so slices are invisible
+        // before the animation runs, preventing a flash of the final state.
         $svg = Chart::pie(['A' => 50, 'B' => 50])->animate()->render();
-        self::assertMatchesRegularExpression('/stroke-dasharray="[0-9.]+ [0-9.]+"/', $svg);
+        self::assertMatchesRegularExpression('/stroke-dasharray="0 [0-9.]+"/', $svg);
     }
 
     public function test_pie_animation_circles_have_stroke_dashoffset(): void
     {
         $svg = Chart::pie(['A' => 50, 'B' => 50])->animate()->render();
         self::assertStringContainsString('stroke-dashoffset=', $svg);
-    }
-
-    public function test_pie_animation_circles_have_pop_vectors(): void
-    {
-        $svg = Chart::pie(['A' => 50, 'B' => 50])->animate()->render();
-        self::assertMatchesRegularExpression('/style="--pop-x:[^"]+--pop-y:[^"]+"/', $svg);
     }
 
     public function test_pie_animation_circles_have_pie_custom_properties(): void
@@ -318,21 +314,24 @@ final class AnimationTest extends TestCase
         self::assertStringContainsString('svgraph-pie-sweep', $svg);
     }
 
-    // ── Hover pop still works on animated pie circles ─────────────────────────
+    // ── Reduced-motion final-state fallbacks ─────────────────────────────────
 
-    public function test_hover_pop_css_includes_circle_selectors_for_pie(): void
+    public function test_animated_line_emits_reduced_motion_final_state(): void
     {
-        // Even non-animated pies get the circle selector in hover CSS (for
-        // the single-slice case and future animated usage).
-        $svg = Chart::pie(['A' => 1, 'B' => 1])->render();
-        self::assertStringContainsString('.svgraph--pie circle[class^="series-"]:hover', $svg);
+        $svg = Chart::line([1, 2, 3])->animate()->render();
+        // Reduced-motion users must see the fully-drawn line (dashoffset:0).
+        self::assertMatchesRegularExpression(
+            '/prefers-reduced-motion:reduce\)[^<]*svgraph-line-path[^<]*stroke-dashoffset:0/',
+            $svg,
+        );
     }
 
-    public function test_reduced_motion_suppresses_pop_on_pie_circles(): void
+    public function test_animated_pie_emits_reduced_motion_final_state(): void
     {
-        $svg = Chart::pie(['A' => 1, 'B' => 1])->render();
+        $svg = Chart::pie(['A' => 1, 'B' => 1])->animate()->render();
+        // Reduced-motion users must see the final arc (not the hidden initial state).
         self::assertMatchesRegularExpression(
-            '/prefers-reduced-motion:reduce\).*circle\[class\^="series-"\].*transform:none/s',
+            '/prefers-reduced-motion:reduce\)[^<]*svgraph-pie-len/',
             $svg,
         );
     }

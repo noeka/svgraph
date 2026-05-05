@@ -253,37 +253,6 @@ final class Wrapper
             . '.svgraph g[class^="series-"]:focus-within>ellipse:first-child{'
             . 'filter:brightness(var(--svgraph-hover-brightness,1.2));}';
 
-        // Pie/donut slice pop: per-slice --pop-x/--pop-y unit vectors are set as
-        // inline CSS custom properties by the PHP renderer.
-        $piePop = '.svgraph--pie path[class^="series-"]:hover,'
-            . '.svgraph--pie path[class^="series-"]:focus-visible,'
-            . '.svgraph--pie circle[class^="series-"]:hover,'
-            . '.svgraph--pie circle[class^="series-"]:focus-visible,'
-            . '.svgraph--donut path[class^="series-"]:hover,'
-            . '.svgraph--donut path[class^="series-"]:focus-visible,'
-            . '.svgraph--donut circle[class^="series-"]:hover,'
-            . '.svgraph--donut circle[class^="series-"]:focus-visible{'
-            . 'transform:translate('
-            . 'calc(var(--svgraph-pie-pop-distance,3px)*var(--pop-x,0)),'
-            . 'calc(var(--svgraph-pie-pop-distance,3px)*var(--pop-y,0))'
-            . ');}';
-
-        // Under reduced motion: suppress the translate pop but keep colour change.
-        $reducedMotion = '@media (prefers-reduced-motion:reduce){'
-            . '.svgraph--pie path[class^="series-"]:hover,'
-            . '.svgraph--pie path[class^="series-"]:focus-visible,'
-            . '.svgraph--pie a.svgraph-linked:focus-visible path[class^="series-"],'
-            . '.svgraph--pie circle[class^="series-"]:hover,'
-            . '.svgraph--pie circle[class^="series-"]:focus-visible,'
-            . '.svgraph--pie a.svgraph-linked:focus-visible circle[class^="series-"],'
-            . '.svgraph--donut path[class^="series-"]:hover,'
-            . '.svgraph--donut path[class^="series-"]:focus-visible,'
-            . '.svgraph--donut a.svgraph-linked:focus-visible path[class^="series-"],'
-            . '.svgraph--donut circle[class^="series-"]:hover,'
-            . '.svgraph--donut circle[class^="series-"]:focus-visible,'
-            . '.svgraph--donut a.svgraph-linked:focus-visible circle[class^="series-"]{'
-            . 'transform:none;}}';
-
         // Linked elements: cursor + keyboard-focus highlight rules.
         // :hover on the inner element is already handled by the rules above
         // (the inner rect/path/etc. is still directly under the pointer).
@@ -301,17 +270,9 @@ final class Wrapper
             . 'filter:brightness(var(--svgraph-hover-brightness,1.2));'
             . 'outline:none;}'
             . '.svgraph a.svgraph-linked:focus-visible g[class^="series-"]>ellipse:first-child{'
-            . 'filter:brightness(var(--svgraph-hover-brightness,1.2));}'
-            . '.svgraph--pie a.svgraph-linked:focus-visible path[class^="series-"],'
-            . '.svgraph--pie a.svgraph-linked:focus-visible circle[class^="series-"],'
-            . '.svgraph--donut a.svgraph-linked:focus-visible path[class^="series-"],'
-            . '.svgraph--donut a.svgraph-linked:focus-visible circle[class^="series-"]{'
-            . 'transform:translate('
-            . 'calc(var(--svgraph-pie-pop-distance,3px)*var(--pop-x,0)),'
-            . 'calc(var(--svgraph-pie-pop-distance,3px)*var(--pop-y,0))'
-            . ');}';
+            . 'filter:brightness(var(--svgraph-hover-brightness,1.2));}';
 
-        return $direct . $lineMarkers . $piePop . $reducedMotion . $linked;
+        return $direct . $lineMarkers . $linked;
     }
 
     private function buildTooltipStyle(): string
@@ -373,10 +334,11 @@ final class Wrapper
         $css = '';
 
         // Line / sparkline: stroke-dasharray draw-on using pathLength="1" normalisation.
+        // stroke-dasharray="1" and stroke-dashoffset="1" are set as HTML attributes
+        // (where pathLength normalization is reliable); CSS only drives the offset.
         if ($this->variantClass === 'line' || $this->variantClass === 'sparkline') {
             $css .= '@keyframes svgraph-draw-line{from{stroke-dashoffset:1}to{stroke-dashoffset:0}}'
                 . '.svgraph--' . $this->variantClass . ' .svgraph-line-path{'
-                . 'stroke-dasharray:1;'
                 . 'animation:svgraph-draw-line ' . $dur . ' ' . $ease . ' both;}';
         }
 
@@ -415,6 +377,24 @@ final class Wrapper
                 . 'animation-delay:var(--svgraph-pie-delay,0ms);}';
         }
 
-        return '@media (prefers-reduced-motion:no-preference){' . $css . '}';
+        $reduceCss = '';
+
+        // Reduced-motion fallbacks: show the final state without animation for
+        // users who request reduced motion but whose page still calls ->animate().
+        if ($this->variantClass === 'line' || $this->variantClass === 'sparkline') {
+            // stroke-dashoffset="1" is set in the HTML; override it to 0 here.
+            $reduceCss .= '.svgraph--' . $this->variantClass . ' .svgraph-line-path{stroke-dashoffset:0;}';
+        }
+        if ($this->variantClass === 'pie' || $this->variantClass === 'donut') {
+            // stroke-dasharray="0 circ" is the initial hidden state; show the final arc.
+            $reduceCss .= '.svgraph--' . $this->variantClass . ' circle[class^="series-"]{'
+                . 'stroke-dasharray:var(--svgraph-pie-len) calc(var(--svgraph-pie-circ) - var(--svgraph-pie-len));}';
+        }
+
+        $result = '@media (prefers-reduced-motion:no-preference){' . $css . '}';
+        if ($reduceCss !== '') {
+            $result .= '@media (prefers-reduced-motion:reduce){' . $reduceCss . '}';
+        }
+        return $result;
     }
 }

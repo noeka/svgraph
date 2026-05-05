@@ -253,6 +253,8 @@ class LineChart extends AbstractChart
         if ($this->animated) {
             $lineAttrs['class'] = "series-{$index} svgraph-line-path";
             $lineAttrs['pathLength'] = '1';
+            $lineAttrs['stroke-dasharray'] = '1';
+            $lineAttrs['stroke-dashoffset'] = '1';
         }
         $wrapper->add(Tag::void('path', $lineAttrs));
 
