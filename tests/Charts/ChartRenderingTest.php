@@ -758,4 +758,137 @@ final class ChartRenderingTest extends TestCase
 
         self::assertStringContainsString('a.svgraph-linked:focus-visible', $svg);
     }
+
+    // ── Crosshair / focus-column tests (issue #9) ────────────────────────────
+
+    public function test_line_without_crosshair_emits_no_hit_columns(): void
+    {
+        $svg = Chart::line([10, 20, 30])->render();
+
+        self::assertStringNotContainsString('svgraph-x-hit', $svg);
+        self::assertStringNotContainsString('svgraph-crosshair', $svg);
+    }
+
+    public function test_line_crosshair_emits_one_hit_rect_per_column(): void
+    {
+        $svg = Chart::line([10, 20, 30, 40])->crosshair()->render();
+
+        self::assertSame(4, substr_count($svg, 'class="svgraph-x-hit"'));
+    }
+
+    public function test_line_crosshair_emits_one_guide_line_per_column(): void
+    {
+        $svg = Chart::line([10, 20, 30, 40])->crosshair()->render();
+
+        self::assertSame(4, substr_count($svg, 'class="svgraph-crosshair"'));
+    }
+
+    public function test_line_crosshair_hit_rects_carry_data_x(): void
+    {
+        $svg = Chart::line([10, 20, 30])->crosshair()->render();
+
+        self::assertMatchesRegularExpression('/<rect [^>]*class="svgraph-x-hit"[^>]*data-x="0"/', $svg);
+        self::assertMatchesRegularExpression('/<rect [^>]*class="svgraph-x-hit"[^>]*data-x="1"/', $svg);
+        self::assertMatchesRegularExpression('/<rect [^>]*class="svgraph-x-hit"[^>]*data-x="2"/', $svg);
+    }
+
+    public function test_line_crosshair_marker_groups_carry_data_x(): void
+    {
+        $svg = Chart::line([10, 20, 30])->crosshair()->render();
+
+        // Three marker groups (one per column) and tooltips, each tagged with its x-index.
+        self::assertSame(3, preg_match_all('/<g [^>]*data-x="\d+"/', $svg));
+    }
+
+    public function test_line_crosshair_tooltips_carry_data_x(): void
+    {
+        $svg = Chart::line([['Mon', 1], ['Tue', 2]])->crosshair()->render();
+
+        self::assertMatchesRegularExpression(
+            '/<div [^>]*class="svgraph-tooltip"[^>]*data-x="0"/',
+            $svg,
+        );
+        self::assertMatchesRegularExpression(
+            '/<div [^>]*class="svgraph-tooltip"[^>]*data-x="1"/',
+            $svg,
+        );
+    }
+
+    public function test_line_crosshair_emits_per_column_has_selectors(): void
+    {
+        $svg = Chart::line([1, 2, 3])->crosshair()->render();
+
+        // Per-column rules drive the crosshair line, marker emphasis, and tooltip activation.
+        self::assertStringContainsString(':has([data-x="0"]:hover)', $svg);
+        self::assertStringContainsString(':has([data-x="1"]:hover)', $svg);
+        self::assertStringContainsString(':has([data-x="2"]:hover)', $svg);
+        self::assertStringContainsString('@supports selector(:has(a))', $svg);
+    }
+
+    public function test_line_crosshair_emits_focus_within_selectors(): void
+    {
+        $svg = Chart::line([1, 2, 3])->crosshair()->render();
+
+        // Keyboard activation: focusing a marker also opens its column.
+        self::assertStringContainsString(':has([data-x="0"]:focus-within)', $svg);
+    }
+
+    public function test_line_crosshair_without_points_marks_visual_markers_as_ghosts(): void
+    {
+        // With crosshair on but points off, markers must exist in the DOM (so the
+        // column hover can reveal them) but the visible ellipse must start invisible.
+        $svg = Chart::line([10, 20, 30])->crosshair()->render();
+
+        // First child of each marker <g> is the visual ellipse — it must carry opacity="0".
+        self::assertSame(
+            3,
+            preg_match_all('/<g [^>]*data-x="\d+"[^>]*><ellipse [^>]*opacity="0"/', $svg),
+        );
+    }
+
+    public function test_line_crosshair_with_points_does_not_ghost_markers(): void
+    {
+        // When points() is also enabled, markers stay visible by default.
+        $svg = Chart::line([10, 20, 30])->points()->crosshair()->render();
+
+        self::assertSame(
+            0,
+            preg_match_all('/<g [^>]*data-x="\d+"[^>]*><ellipse [^>]*opacity="0"/', $svg),
+        );
+    }
+
+    public function test_line_crosshair_returns_self_for_chaining(): void
+    {
+        $chart = Chart::line([1, 2, 3]);
+        self::assertSame($chart, $chart->crosshair());
+    }
+
+    public function test_line_crosshair_off_disables_emission(): void
+    {
+        $svg = Chart::line([1, 2, 3])->crosshair(true)->crosshair(false)->render();
+
+        self::assertStringNotContainsString('svgraph-x-hit', $svg);
+        self::assertStringNotContainsString('svgraph-crosshair', $svg);
+    }
+
+    public function test_line_crosshair_works_for_multi_series(): void
+    {
+        $svg = Chart::line(['Jan' => 12, 'Feb' => 27, 'Mar' => 18])
+            ->addSeries(\Noeka\Svgraph\Data\Series::of('Costs', ['Jan' => 6, 'Feb' => 14, 'Mar' => 9]))
+            ->crosshair()
+            ->render();
+
+        // Both series get a marker group at every column → 6 marker groups, but
+        // only 3 hit rects (columns are shared across series).
+        self::assertSame(3, substr_count($svg, 'class="svgraph-x-hit"'));
+        self::assertSame(6, preg_match_all('/<g [^>]*data-x="\d+"/', $svg));
+    }
+
+    public function test_line_crosshair_empty_data_emits_nothing(): void
+    {
+        $svg = Chart::line([])->crosshair()->render();
+
+        self::assertStringNotContainsString('svgraph-x-hit', $svg);
+        self::assertStringNotContainsString('svgraph-crosshair', $svg);
+    }
 }

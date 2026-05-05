@@ -37,6 +37,8 @@ final class Wrapper
 
     private ?string $secondaryVariant = null;
 
+    private int $crosshairColumns = 0;
+
     public function __construct(
         private readonly Viewport $viewport,
         private readonly float $aspectRatio,
@@ -77,6 +79,17 @@ final class Wrapper
     public function enableAnimation(): self
     {
         $this->animated = true;
+        return $this;
+    }
+
+    /**
+     * Enable per-column crosshair styling. $columnCount is the number of x-columns
+     * in the chart; one CSS rule block is emitted per column to drive the
+     * `:has([data-x="N"]:hover)` activation pattern.
+     */
+    public function enableCrosshair(int $columnCount): self
+    {
+        $this->crosshairColumns = max(0, $columnCount);
         return $this;
     }
 
@@ -152,7 +165,7 @@ final class Wrapper
             'style' => $wrapperStyle,
         ]);
 
-        if ($this->tooltips !== [] || $this->hasSeriesElements || $this->animated) {
+        if ($this->tooltips !== [] || $this->hasSeriesElements || $this->animated || $this->crosshairColumns > 0) {
             $div->appendRaw($this->buildStyle());
         }
 
@@ -181,13 +194,13 @@ final class Wrapper
         foreach ($this->tooltips as $tip) {
             $left = Tag::formatFloat($tip->leftPct) . '%';
             $top = Tag::formatFloat($tip->topPct) . '%';
-            $div->append(
-                Tag::make('div', [
-                    'class' => 'svgraph-tooltip',
-                    'data-for' => $tip->id,
-                    'style' => "position:absolute;left:{$left};top:{$top};",
-                ])->appendRaw($tip->text),
-            );
+            $attrs = [
+                'class' => 'svgraph-tooltip',
+                'data-for' => $tip->id,
+                'data-x' => $tip->dataX !== null ? (string) $tip->dataX : null,
+                'style' => "position:absolute;left:{$left};top:{$top};",
+            ];
+            $div->append(Tag::make('div', $attrs)->appendRaw($tip->text));
         }
 
         return (string) $div;
@@ -207,6 +220,10 @@ final class Wrapper
 
         if ($this->animated) {
             $css .= $this->buildAnimationStyle();
+        }
+
+        if ($this->crosshairColumns > 0) {
+            $css .= $this->buildCrosshairStyle();
         }
 
         return "<style>{$css}</style>";
@@ -313,6 +330,37 @@ final class Wrapper
             $id = $tip->id;
             $rules .= ".svgraph:has(#{$id}:hover) [data-for=\"{$id}\"],"
                 . ".svgraph:has(#{$id}:focus-visible) [data-for=\"{$id}\"]{display:block;}";
+        }
+
+        return $base . '@supports selector(:has(a)){' . $rules . '}';
+    }
+
+    /**
+     * Per-column hover/focus rules for the line-chart crosshair feature.
+     *
+     * Each column emits CSS that activates when any element carrying its
+     * `data-x="N"` attribute is hovered or contains keyboard focus — typically
+     * the wide `.svgraph-x-hit` rect or one of the marker `<g>`s. Activation
+     * reveals the matching crosshair guide line, brightens every series'
+     * marker at that x, and opens every series' tooltip stacked at that x.
+     *
+     * Wrapped in `@supports selector(:has(a))` so browsers without `:has`
+     * fall back gracefully (no crosshair, but the rest of the chart still works).
+     */
+    private function buildCrosshairStyle(): string
+    {
+        $base = '.svgraph-crosshair{opacity:0;pointer-events:none;}'
+            . '.svgraph-x-hit{fill:transparent;cursor:crosshair;}';
+
+        $rules = '';
+        for ($i = 0; $i < $this->crosshairColumns; $i++) {
+            $rules .= ".svgraph svg:has([data-x=\"{$i}\"]:hover) .svgraph-crosshair[data-x=\"{$i}\"],"
+                . ".svgraph svg:has([data-x=\"{$i}\"]:focus-within) .svgraph-crosshair[data-x=\"{$i}\"]{opacity:1;}"
+                . ".svgraph svg:has([data-x=\"{$i}\"]:hover) g[data-x=\"{$i}\"]>ellipse:first-child,"
+                . ".svgraph svg:has([data-x=\"{$i}\"]:focus-within) g[data-x=\"{$i}\"]>ellipse:first-child{"
+                . 'opacity:1;filter:brightness(var(--svgraph-hover-brightness,1.2));}'
+                . ".svgraph:has([data-x=\"{$i}\"]:hover) .svgraph-tooltip[data-x=\"{$i}\"],"
+                . ".svgraph:has([data-x=\"{$i}\"]:focus-within) .svgraph-tooltip[data-x=\"{$i}\"]{display:block;}";
         }
 
         return $base . '@supports selector(:has(a)){' . $rules . '}';

@@ -69,6 +69,29 @@ You can replace any of those by writing more-specific rules — your
 selectors win because they're loaded from your stylesheet (after the
 chart's inline `<style>`).
 
+## Line-chart crosshair
+
+When `->crosshair()` is enabled on a line chart, the markup gains:
+
+- `<rect class="svgraph-x-hit" data-x="N">` — one transparent column-wide
+  hit rect per data point. Catches the pointer for the column-hover effect.
+- `<line class="svgraph-crosshair" data-x="N">` — one dashed vertical
+  guide per column, hidden until its column is hovered or focused.
+- A `data-x="N"` attribute on every marker `<g>` and tooltip `<div>`,
+  shared across all series for that column.
+
+Override the guide line's appearance from your stylesheet:
+
+```css
+.svgraph-crosshair {
+    stroke: #cbd5e1;
+    stroke-dasharray: 0; /* solid line */
+}
+```
+
+The activation rules use `:has(...)`, so the column hover degrades to
+nothing on browsers without `:has` support — the chart still renders.
+
 ## Disabling the inline style block
 
 There is no API to suppress the inline `<style>` block. Its rules are

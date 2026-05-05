@@ -38,6 +38,7 @@ objects. Multi-series via [`addSeries()`](#multi-series).
 | `->axes(bool = true)` | `false` | Show y/x axis lines and tick labels. |
 | `->grid(bool = true)` | `false` | Show horizontal grid lines. |
 | `->points(bool = true)` | `false` | Render a marker dot at each data point. |
+| `->crosshair(bool = true)` | `false` | Hover crosshair: vertical guide + multi-series tooltip on the nearest x. |
 | `->ticks(int)` | `5` | Number of y-axis ticks (clamped to ≥ 2). |
 | `->aspect(float)` | `2.5` | Width-to-height ratio. |
 | `->cssClass(?string)` | `null` | Extra class on the wrapper. |
@@ -91,6 +92,40 @@ Chart::line(['Jan' => 12, 'Feb' => 27, 'Mar' => 18, 'Apr' => 33, 'May' => 41])
 
 Tooltips on multi-series charts prefix the series name, e.g.
 `Costs — Mar: 9`.
+
+## Crosshair
+
+Opt in with `->crosshair()` to add a hover-activated vertical guide. Moving
+the pointer anywhere along the chart snaps to the nearest x, reveals a
+dashed guide line, and opens every series' tooltip stacked at that
+column.
+
+```php
+use Noeka\Svgraph\Chart;
+use Noeka\Svgraph\Data\Series;
+
+Chart::line(['Mon' => 12, 'Tue' => 27, 'Wed' => 18, 'Thu' => 41, 'Fri' => 33, 'Sat' => 52, 'Sun' => 38])
+    ->addSeries(Series::of('Costs', ['Mon' => 6, 'Tue' => 14, 'Wed' => 9, 'Thu' => 22, 'Fri' => 18, 'Sat' => 30, 'Sun' => 21], '#ef4444'))
+    ->axes()->grid()->points()->crosshair();
+```
+
+![Line chart with hover crosshair](../images/line-crosshair.svg)
+
+The image above is a static rendering — open it in a browser via the live
+example to see the column hover effect.
+
+Notes:
+
+- Pure CSS; works with the same `:has(...)` support that powers tooltips.
+  Browsers without `:has()` show the chart without the column hover (the
+  rest of the chart still works).
+- Implies marker emission. If `->points()` isn't also enabled, markers
+  stay invisible until a column is hovered, then fade in for that column
+  only.
+- Keyboard users get the same effect: tabbing onto a marker opens its
+  column.
+- Sparkline charts inherit this method but axes/grid normally aren't on
+  sparklines, so the experience is best on full line charts.
 
 ## Color resolution
 
