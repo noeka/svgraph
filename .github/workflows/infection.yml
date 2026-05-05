@@ -1,11 +1,12 @@
-name: Infection (manual)
+name: Infection
 
-# Mutation testing is slow and the project hasn't established a baseline MSI
-# yet. This workflow runs Infection on demand only — click "Run workflow" on
-# the Actions tab to produce the score, then set the thresholds in
-# infection.json5 to slightly below the result.
+# Mutation testing gates pull requests targeting main. Thresholds live in
+# infection.json5 (minMsi / minCoveredMsi). The job also remains available
+# from the Actions tab as "Run workflow" for ad-hoc baseline runs.
 
 on:
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 jobs:

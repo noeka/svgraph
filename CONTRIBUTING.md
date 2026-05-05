@@ -110,29 +110,38 @@ install `pcov` (faster) or `xdebug` first.
 composer mutate
 ```
 
-This is **not run on every push** — it's slow and the project hasn't
-established a baseline MSI yet. Use it locally when changing math/geometry
-code (`src/Geometry/`, `src/Data/Series.php`) to find assertions that
-don't actually constrain behavior. A mutator that survives is a hint
-that the test suite would not catch a real regression at that line.
+This **runs on every pull request** via the `Infection` workflow on PHP
+8.3. Thresholds live in `infection.json5` (`minMsi`, `minCoveredMsi`)
+and are ratcheted upward as the suite improves. Lowering them to make
+CI green is not the answer — strengthen the assertions instead.
 
-If you don't have a coverage driver installed locally, there's an
-opt-in `Infection (manual)` workflow at
-`.github/workflows/infection.yml`. Trigger it from the Actions tab via
-"Run workflow" — the score lands in the job summary and the full reports
-attach as a build artifact.
+The workflow can also be triggered manually from the Actions tab if
+you want a fresh score against a non-PR branch.
 
 ### Snapshot assertions
 
-`spatie/phpunit-snapshot-assertions` is available for any test that wants
-to assert on full SVG output rather than fragments:
+`spatie/phpunit-snapshot-assertions` captures byte-level snapshots of
+rendered SVG. Representative chart shapes live in
+`tests/Snapshots/ChartSnapshotTest.php` with fixtures under
+`tests/Snapshots/__snapshots__/`.
+
+Chart IDs come from a static counter on `AbstractChart`, so the
+counter is reset in `setUp()` via reflection to keep snapshots stable
+across test orderings. Any new snapshot test must do the same.
 
 ```php
+use Noeka\Svgraph\Charts\AbstractChart;
 use Spatie\Snapshots\MatchesSnapshots;
 
 final class MyChartTest extends \PHPUnit\Framework\TestCase
 {
     use MatchesSnapshots;
+
+    protected function setUp(): void
+    {
+        $ref = new \ReflectionClass(AbstractChart::class);
+        $ref->getProperty('nextId')->setValue(null, 0);
+    }
 
     public function test_renders_expected_svg(): void
     {
@@ -142,10 +151,10 @@ final class MyChartTest extends \PHPUnit\Framework\TestCase
 }
 ```
 
-First run writes the expected fixture under `tests/__snapshots__/`;
-subsequent runs diff against it. **Review snapshot diffs in code review
-the same as any other change** — they're the contract for downstream
-output. Delete a `.txt` snapshot to regenerate it.
+First run writes the expected fixture; subsequent runs diff against
+it. **Review snapshot diffs in code review the same as any other
+change** — they're the contract for downstream output. Delete a `.txt`
+snapshot to regenerate it.
 
 Reach for snapshots when you're testing the shape of the whole SVG.
 Keep `assertStringContainsString` for narrow per-attribute checks where
@@ -171,7 +180,10 @@ covers PHP 8.3, 8.4, 8.5. Each job runs:
 5. `vendor/bin/phpunit` with coverage
 6. 90% line-coverage gate
 
-Mutation testing and image regeneration are **not** in CI.
+A separate `Infection` workflow runs on every pull request on PHP 8.3
+with `pcov`. It gates against the thresholds in `infection.json5`.
+
+Image regeneration is **not** in CI.
 
 ## Regenerating example images
 
