@@ -29,6 +29,7 @@ class LineChart extends AbstractChart
     protected bool $showAxes = false;
     protected bool $showGrid = false;
     protected bool $showPoints = false;
+    protected bool $showCrosshair = false;
 
     protected int $tickCount = 5;
 
@@ -109,6 +110,21 @@ class LineChart extends AbstractChart
         return $this;
     }
 
+    /**
+     * Opt in to a hover crosshair. When the pointer enters the chart area
+     * the column nearest the cursor reveals a vertical guide line, brightens
+     * every series' marker at that x, and opens every series' tooltip.
+     *
+     * Pure CSS — uses `:has(...)` so the feature degrades silently in browsers
+     * without it. Implies marker emission: when `points()` is also off, the
+     * markers stay invisible until a column is hovered, then fade in.
+     */
+    public function crosshair(bool $on = true): static
+    {
+        $this->showCrosshair = $on;
+        return $this;
+    }
+
     public function ticks(int $count): static
     {
         $this->tickCount = max(2, $count);
@@ -168,8 +184,21 @@ class LineChart extends AbstractChart
             $wrapper->enableAnimation();
         }
 
+        if ($this->showCrosshair) {
+            foreach ($this->buildCrosshairLines($maxLen, $xScale, $viewport) as $line) {
+                $wrapper->add($line);
+            }
+        }
+
         foreach ($this->seriesCollection->items as $i => $series) {
             $this->renderSeries($wrapper, $series, $i, $xScale, $yScale, $viewport, $strokeWidth);
+        }
+
+        if ($this->showCrosshair) {
+            foreach ($this->buildCrosshairHits($maxLen, $xScale, $viewport) as $hit) {
+                $wrapper->add($hit);
+            }
+            $wrapper->enableCrosshair($maxLen);
         }
 
         if ($this->showAxes) {
@@ -227,7 +256,7 @@ class LineChart extends AbstractChart
         }
         $wrapper->add(Tag::void('path', $lineAttrs));
 
-        if ($this->showPoints) {
+        if ($this->showPoints || $this->showCrosshair) {
             $this->renderMarkers($wrapper, $series, $index, $points, $color, $strokeWidth, $viewport);
         }
     }
@@ -251,6 +280,11 @@ class LineChart extends AbstractChart
         $hitRx = $hitR / max(0.01, $this->aspectRatio);
         $wrapper->markHasSeriesElements();
 
+        // Ghost markers: when crosshair is on but `points()` was never called,
+        // emit the marker DOM but keep the visible ellipse opacity:0 by default.
+        // The crosshair CSS (and direct hover/focus on the marker) reveals it.
+        $ghost = $this->showCrosshair && !$this->showPoints;
+
         foreach ($points as $i => [$x, $y]) {
             $p = $series->points[$i];
             $id = "{$chartId}-s{$index}-pt-{$i}";
@@ -259,14 +293,22 @@ class LineChart extends AbstractChart
             // Wrap visual marker + transparent hit target in a <g> so that
             // CSS :hover/:focus-within on the group can highlight the visual
             // ellipse even though the (larger) hit target intercepts events.
-            $group = Tag::make('g', ['class' => "series-{$index}"]);
-            $group->append(Tag::make('ellipse', [
+            $groupAttrs = ['class' => "series-{$index}"];
+            if ($this->showCrosshair) {
+                $groupAttrs['data-x'] = (string) $i;
+            }
+            $group = Tag::make('g', $groupAttrs);
+            $visualAttrs = [
                 'cx' => Tag::formatFloat($x),
                 'cy' => Tag::formatFloat($y),
                 'rx' => Tag::formatFloat($rx),
                 'ry' => Tag::formatFloat($r),
                 'fill' => $color,
-            ])->append(Tag::make('title')->append($tipText)));
+            ];
+            if ($ghost) {
+                $visualAttrs['opacity'] = '0';
+            }
+            $group->append(Tag::make('ellipse', $visualAttrs)->append(Tag::make('title')->append($tipText)));
             $hitAttrs = [
                 'id' => $hasLink ? null : $id,
                 'cx' => Tag::formatFloat($x),
@@ -283,6 +325,7 @@ class LineChart extends AbstractChart
                 text: Tag::escapeText($tipText),
                 leftPct: $x / $viewport->width * 100,
                 topPct: $y / $viewport->height * 100,
+                dataX: $this->showCrosshair ? $i : null,
             ));
         }
     }
@@ -335,6 +378,70 @@ class LineChart extends AbstractChart
             ]);
         }
         return $lines;
+    }
+
+    /**
+     * Vertical guide lines, one per x-column. Hidden by default; the wrapper's
+     * crosshair CSS reveals the line whose `data-x` matches the hovered column.
+     *
+     * @return list<Tag>
+     */
+    protected function buildCrosshairLines(int $maxLen, Scale $xScale, Viewport $viewport): array
+    {
+        $lines = [];
+        for ($i = 0; $i < $maxLen; $i++) {
+            $x = $xScale->map((float) $i);
+            $lines[] = Tag::void('line', [
+                'class' => 'svgraph-crosshair',
+                'data-x' => (string) $i,
+                'x1' => Tag::formatFloat($x),
+                'x2' => Tag::formatFloat($x),
+                'y1' => Tag::formatFloat($viewport->plotTop()),
+                'y2' => Tag::formatFloat($viewport->plotBottom()),
+                'stroke' => $this->theme->axisColor,
+                'stroke-width' => '1',
+                'stroke-dasharray' => '2,2',
+                'vector-effect' => 'non-scaling-stroke',
+            ]);
+        }
+        return $lines;
+    }
+
+    /**
+     * Per-column hit rects covering the plot area. Each column owns the
+     * half-gap on either side of its x position so the cursor snaps to the
+     * nearest column. Emitted last in the SVG so they sit above the data and
+     * reliably catch pointer events.
+     *
+     * @return list<Tag>
+     */
+    protected function buildCrosshairHits(int $maxLen, Scale $xScale, Viewport $viewport): array
+    {
+        $top = $viewport->plotTop();
+        $height = $viewport->plotBottom() - $top;
+        $left = $viewport->plotLeft();
+        $right = $viewport->plotRight();
+
+        $xs = [];
+        for ($i = 0; $i < $maxLen; $i++) {
+            $xs[] = $xScale->map((float) $i);
+        }
+
+        $rects = [];
+        foreach ($xs as $i => $x) {
+            $colLeft = $i === 0 ? $left : ($xs[$i - 1] + $x) / 2;
+            $colRight = $i === $maxLen - 1 ? $right : ($x + $xs[$i + 1]) / 2;
+            $rects[] = Tag::void('rect', [
+                'class' => 'svgraph-x-hit',
+                'data-x' => (string) $i,
+                'x' => Tag::formatFloat($colLeft),
+                'y' => Tag::formatFloat($top),
+                'width' => Tag::formatFloat(max(0.0, $colRight - $colLeft)),
+                'height' => Tag::formatFloat(max(0.0, $height)),
+                'fill' => 'transparent',
+            ]);
+        }
+        return $rects;
     }
 
     /**
