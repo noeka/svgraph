@@ -166,12 +166,8 @@ class PieChart extends AbstractChart
             $d = Path::arc($cx, $cy, $outerRadius, $innerRadius, $start, $end);
             $id = "{$chartId}-pt-{$i}";
             $tipText = $this->tooltip($slice->label, $value);
-            $midAngle = ($start + $end) / 2;
-            $popX = round(sin($midAngle), 4);
-            $popY = round(-cos($midAngle), 4);
             $path = Tag::make('path', [
                 'class' => "series-{$i}",
-                'style' => "--pop-x:{$popX};--pop-y:{$popY};",
                 'd' => $d,
                 'fill' => $color,
             ])->append(Tag::make('title')->append($tipText));
@@ -236,7 +232,7 @@ class PieChart extends AbstractChart
             $tipText = $this->tooltip($only->label, $only->value);
             $circ = Tag::formatFloat($circumference);
             $off = Tag::formatFloat($circumference / 4.0 - ($this->startAngle / 360.0) * $circumference);
-            // Full circle: dasharray = circ 0 (entire circumference is the dash).
+            // Full circle: initial dasharray = 0 circ (hidden); animation sweeps to circ 0.
             $circle = Tag::make('circle', [
                 'class' => 'series-0',
                 'cx' => Tag::formatFloat($cx),
@@ -245,9 +241,9 @@ class PieChart extends AbstractChart
                 'fill' => 'none',
                 'stroke' => $color,
                 'stroke-width' => Tag::formatFloat($strokeWidth),
-                'stroke-dasharray' => "{$circ} 0",
+                'stroke-dasharray' => "0 {$circ}",
                 'stroke-dashoffset' => $off,
-                'style' => "--pop-x:0;--pop-y:0;--svgraph-pie-off:{$off};--svgraph-pie-len:{$circ};--svgraph-pie-circ:{$circ};",
+                'style' => "--svgraph-pie-off:{$off};--svgraph-pie-len:{$circ};--svgraph-pie-circ:{$circ};",
             ])->append(Tag::make('title')->append($tipText));
             $wrapper->add($this->buildLink($only->link, $id, $circle));
             $wrapper->tooltip(new Tooltip(
@@ -285,13 +281,10 @@ class PieChart extends AbstractChart
 
             $dashOffset = $circumference / 4.0 - $startOffsetArc - $cumulativeArc - $halfGapArc;
             $arcLen = Tag::formatFloat($visibleArc);
-            $gap = Tag::formatFloat(max(0.0, $circumference - $visibleArc));
             $off = Tag::formatFloat($dashOffset);
             $delay = round($i * 0.08, 3);
 
             $midAngle = $angle + $sweepAngle / 2.0;
-            $popX = round(sin($midAngle), 4);
-            $popY = round(-cos($midAngle), 4);
 
             $color = $slice->color ?? $this->theme->colorAt($i);
             $id = "{$chartId}-pt-{$i}";
@@ -305,9 +298,9 @@ class PieChart extends AbstractChart
                 'fill' => 'none',
                 'stroke' => $color,
                 'stroke-width' => Tag::formatFloat($strokeWidth),
-                'stroke-dasharray' => "{$arcLen} {$gap}",
+                'stroke-dasharray' => "0 {$circ}",
                 'stroke-dashoffset' => $off,
-                'style' => "--pop-x:{$popX};--pop-y:{$popY};--svgraph-pie-off:{$off};--svgraph-pie-len:{$arcLen};--svgraph-pie-circ:{$circ};animation-delay:{$delay}s;",
+                'style' => "--svgraph-pie-off:{$off};--svgraph-pie-len:{$arcLen};--svgraph-pie-circ:{$circ};animation-delay:{$delay}s;",
             ])->append(Tag::make('title')->append($tipText));
 
             $wrapper->add($this->buildLink($slice->link, $id, $circle));
