@@ -7,10 +7,6 @@ name: Infection (manual)
 
 on:
   workflow_dispatch:
-  # TEMPORARY: enabled to capture the baseline MSI score on the PR.
-  # Remove this `pull_request` trigger once thresholds are set in infection.json5.
-  pull_request:
-    branches: [main]
 
 jobs:
   mutate:
