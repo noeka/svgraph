@@ -110,11 +110,17 @@ install `pcov` (faster) or `xdebug` first.
 composer mutate
 ```
 
-This is **not run in CI** — it's slow and the project hasn't established a
-baseline MSI yet. Use it locally when changing math/geometry code
-(`src/Geometry/`, `src/Data/Series.php`) to find assertions that don't
-actually constrain behavior. A mutator that survives is a hint that the
-test suite would not catch a real regression at that line.
+This is **not run on every push** — it's slow and the project hasn't
+established a baseline MSI yet. Use it locally when changing math/geometry
+code (`src/Geometry/`, `src/Data/Series.php`) to find assertions that
+don't actually constrain behavior. A mutator that survives is a hint
+that the test suite would not catch a real regression at that line.
+
+If you don't have a coverage driver installed locally, there's an
+opt-in `Infection (manual)` workflow at
+`.github/workflows/infection.yml`. Trigger it from the Actions tab via
+"Run workflow" — the score lands in the job summary and the full reports
+attach as a build artifact.
 
 ### Snapshot assertions
 

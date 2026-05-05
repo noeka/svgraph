@@ -1,0 +1,50 @@
+name: Infection (manual)
+
+# Mutation testing is slow and the project hasn't established a baseline MSI
+# yet. This workflow runs Infection on demand only — click "Run workflow" on
+# the Actions tab to produce the score, then set the thresholds in
+# infection.json5 to slightly below the result.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  mutate:
+    name: Infection
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.3"
+          coverage: pcov
+
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist
+
+      - name: Run Infection
+        run: composer mutate -- --no-progress --logger-github
+
+      - name: Publish summary
+        if: always()
+        run: |
+          if [ -f build/infection/summary.log ]; then
+            {
+              echo "## Infection summary"
+              echo ""
+              echo '```'
+              cat build/infection/summary.log
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: infection-report
+          path: build/infection/
+          if-no-files-found: ignore
