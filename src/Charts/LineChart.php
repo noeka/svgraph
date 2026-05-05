@@ -523,7 +523,10 @@ class LineChart extends AbstractChart
         }
 
         foreach ($this->seriesCollection->commonLabels() as $i => $label) {
-            if ($label === null || $label === '') {
+            if ($label === null) {
+                continue;
+            }
+            if ($label === '') {
                 continue;
             }
             $x = $xScale->map((float) $i);

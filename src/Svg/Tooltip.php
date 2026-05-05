@@ -13,7 +13,7 @@ namespace Noeka\Svgraph\Svg;
  * `transform:translate(-50%,-100%)` so the tooltip's bottom-centre sits on
  * the anchor point.
  */
-final class Tooltip
+final readonly class Tooltip
 {
     /**
      * @param string   $id      The `id` attribute value on the corresponding SVG element.
@@ -27,10 +27,10 @@ final class Tooltip
      *                          so a single column hover can reveal every series' tooltip.
      */
     public function __construct(
-        public readonly string $id,
-        public readonly string $text,
-        public readonly float $leftPct,
-        public readonly float $topPct,
-        public readonly ?int $dataX = null,
+        public string $id,
+        public string $text,
+        public float $leftPct,
+        public float $topPct,
+        public ?int $dataX = null,
     ) {}
 }

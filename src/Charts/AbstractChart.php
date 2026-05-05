@@ -21,7 +21,7 @@ abstract class AbstractChart implements \Stringable
     protected bool $animated = false;
 
     private static int $nextId = 0;
-    private int $instanceId;
+    private readonly int $instanceId;
 
     public function __construct()
     {
@@ -105,7 +105,7 @@ abstract class AbstractChart implements \Stringable
      */
     protected function buildLink(?Link $link, string $id, Tag $inner): Tag
     {
-        if ($link === null) {
+        if (!$link instanceof Link) {
             return $inner->attr('id', $id)->attr('tabindex', '0');
         }
         $attrs = ['id' => $id, 'href' => $link->href, 'class' => 'svgraph-linked'];

@@ -68,7 +68,7 @@ final class Tag implements \Stringable
 
     public function __toString(): string
     {
-        $attrs = self::renderAttributes($this->attributes);
+        $attrs = $this->renderAttributes($this->attributes);
 
         if ($this->selfClosing) {
             return "<{$this->name}{$attrs}/>";
@@ -91,14 +91,17 @@ final class Tag implements \Stringable
     /**
      * @param array<string, scalar|null> $attributes
      */
-    private static function renderAttributes(array $attributes): string
+    private function renderAttributes(array $attributes): string
     {
         $out = '';
         foreach ($attributes as $key => $value) {
-            if ($value === null || $value === false) {
+            if ($value === null) {
                 continue;
             }
-            if (!self::isValidAttrName($key)) {
+            if ($value === false) {
+                continue;
+            }
+            if (!$this->isValidAttrName($key)) {
                 continue;
             }
             if ($value === true) {
@@ -111,7 +114,7 @@ final class Tag implements \Stringable
         return $out;
     }
 
-    private static function isValidAttrName(string $name): bool
+    private function isValidAttrName(string $name): bool
     {
         return (bool) preg_match('/^[A-Za-z_:][A-Za-z0-9_:.\-]*$/', $name);
     }
