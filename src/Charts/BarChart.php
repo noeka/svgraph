@@ -27,6 +27,7 @@ class BarChart extends AbstractChart
     protected float $cornerRadius = 0.0;
     protected bool $showAxes = false;
     protected bool $showGrid = false;
+    protected bool $showLegend = false;
     protected int $tickCount = 5;
     protected bool $useColorPerBar = false;
 
@@ -112,6 +113,19 @@ class BarChart extends AbstractChart
     public function ticks(int $count): static
     {
         $this->tickCount = max(2, $count);
+        return $this;
+    }
+
+    /**
+     * Render a CSS-only toggle legend below the chart. Each entry is a
+     * `<label>` bound to a hidden checkbox; clicking an entry hides its
+     * series and dims the entry. State is page-local (no JS = no
+     * persistence) and the value axis does not rescale to the remaining
+     * series.
+     */
+    public function legend(bool $on = true): static
+    {
+        $this->showLegend = $on;
         return $this;
     }
 
@@ -261,6 +275,10 @@ class BarChart extends AbstractChart
                     verticalAlign: 'bottom',
                 ));
             }
+        }
+
+        if ($this->showLegend) {
+            $wrapper->setLegend($this->buildLegendEntries());
         }
 
         return $wrapper->render();
@@ -505,6 +523,10 @@ class BarChart extends AbstractChart
             }
         }
 
+        if ($this->showLegend) {
+            $wrapper->setLegend($this->buildLegendEntries());
+        }
+
         return $wrapper->render();
     }
 
@@ -654,6 +676,25 @@ class BarChart extends AbstractChart
             leftPct: ($left + $width) / $viewport->width * 100,
             topPct: ($y + $height / 2) / $viewport->height * 100,
         ));
+    }
+
+    /**
+     * @return list<array{id: string, seriesIndex: int, name: string, color: string}>
+     */
+    private function buildLegendEntries(): array
+    {
+        $chartId = $this->chartId();
+        $entries = [];
+        foreach ($this->seriesCollection->items as $i => $series) {
+            $name = $series->name !== '' ? $series->name : 'Series ' . ($i + 1);
+            $entries[] = [
+                'id' => "{$chartId}-s{$i}",
+                'seriesIndex' => $i,
+                'name' => $name,
+                'color' => $this->resolveSeriesColor($series, $i),
+            ];
+        }
+        return $entries;
     }
 
     /**

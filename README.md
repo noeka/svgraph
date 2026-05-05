@@ -73,6 +73,30 @@ Chart::line(['Jan' => 12, 'Feb' => 27, 'Mar' => 18])
 For bar charts, `->grouped()` and `->stacked()` pick how series share
 each x-tick. See [bar chart docs](docs/charts/bar.md#multi-series).
 
+## Legend (toggle series visibility)
+
+```php
+Chart::line(['Jan' => 12, 'Feb' => 27, 'Mar' => 18])
+    ->addSeries(Series::of('Costs', ['Jan' => 6, 'Feb' => 14, 'Mar' => 9]))
+    ->legend();
+```
+
+Available on line and bar charts. Each legend entry is a `<label>` bound
+to a hidden checkbox; clicking it hides that series and dims the entry.
+Pure CSS — no JavaScript.
+
+Caveats:
+
+- **State is page-local.** Refreshing the page resets every toggle; without
+  JS there is nowhere to persist it.
+- **Axes do not rescale.** Hiding a tall series leaves the value axis at
+  the original combined min/max, so the remaining series stay at their
+  original positions on the canvas.
+- **Multiple charts on the same page** get unique IDs automatically, so
+  toggling one chart never affects another.
+- **Keyboard-accessible.** The `<label>` + checkbox combo is natively
+  focusable; pressing Space toggles the series.
+
 ## Animations
 
 ```php

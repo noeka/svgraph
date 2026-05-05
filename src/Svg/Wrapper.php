@@ -29,6 +29,9 @@ final class Wrapper
     /** @var list<Tooltip> */
     private array $tooltips = [];
 
+    /** @var list<array{id: string, seriesIndex: int, name: string, color: string}> */
+    private array $legendEntries = [];
+
     private ?string $userClass = null;
 
     private bool $hasSeriesElements = false;
@@ -103,6 +106,21 @@ final class Wrapper
         return $this;
     }
 
+    /**
+     * Enable a CSS-only toggle legend. Each entry produces a hidden
+     * checkbox + label; the wrapper emits CSS rules that hide the matching
+     * `series-{N}` elements when the entry is unchecked.
+     *
+     * @param list<array{id: string, seriesIndex: int, name: string, color: string}> $entries
+     *   `id` must be a CSS-safe identifier unique to the chart instance
+     *   (the chart layer is responsible for collision avoidance).
+     */
+    public function setLegend(array $entries): self
+    {
+        $this->legendEntries = $entries;
+        return $this;
+    }
+
     public function render(): string
     {
         $paddingBottom = (1.0 / max($this->aspectRatio, 0.01)) * 100.0;
@@ -115,10 +133,16 @@ final class Wrapper
             $classes[] = $this->userClass;
         }
 
-        $wrapperStyle = sprintf(
+        $hasLegend = $this->legendEntries !== [];
+
+        // Aspect-ratio styling sits on whichever element holds the SVG: the
+        // outer .svgraph when no legend, or an inner .svgraph__chart when a
+        // legend is rendered (so the legend can sit below in flow).
+        $aspectStyle = sprintf(
             'position:relative;width:100%%;padding-bottom:%s%%;',
             Tag::formatFloat($paddingBottom),
         );
+        $wrapperStyle = $hasLegend ? '' : $aspectStyle;
 
         if ($this->tooltips !== []) {
             $bg = Css::color($this->theme->tooltipBackground) ?? '#1f2937';
@@ -165,11 +189,30 @@ final class Wrapper
             'style' => $wrapperStyle,
         ]);
 
-        if ($this->tooltips !== [] || $this->hasSeriesElements || $this->animated || $this->crosshairColumns > 0) {
+        if ($this->tooltips !== [] || $this->hasSeriesElements || $this->animated || $this->crosshairColumns > 0 || $hasLegend) {
             $div->appendRaw($this->buildStyle());
         }
 
-        $div->append($svg);
+        // Hidden checkbox toggles must precede the chart and legend so the
+        // sibling combinator (~) can target them when unchecked.
+        if ($hasLegend) {
+            foreach ($this->legendEntries as $entry) {
+                $div->append(Tag::void('input', [
+                    'type' => 'checkbox',
+                    'id' => $entry['id'],
+                    'class' => 'svgraph-toggle',
+                    'checked' => true,
+                    'aria-label' => $entry['name'],
+                ]));
+            }
+        }
+
+        // The chart parent: outer .svgraph when no legend, inner .svgraph__chart when legend is on.
+        $chartParent = $hasLegend
+            ? Tag::make('div', ['class' => 'svgraph__chart', 'style' => $aspectStyle])
+            : $div;
+
+        $chartParent->append($svg);
 
         if ($this->labels !== []) {
             $fontFamily = Css::fontFamily($this->theme->fontFamily) ?? 'inherit';
@@ -188,7 +231,7 @@ final class Wrapper
             foreach ($this->labels as $label) {
                 $labelTag->appendRaw($label->render());
             }
-            $div->append($labelTag);
+            $chartParent->append($labelTag);
         }
 
         foreach ($this->tooltips as $tip) {
@@ -200,10 +243,33 @@ final class Wrapper
                 'data-x' => $tip->dataX !== null ? (string) $tip->dataX : null,
                 'style' => "position:absolute;left:{$left};top:{$top};",
             ];
-            $div->append(Tag::make('div', $attrs)->appendRaw($tip->text));
+            $chartParent->append(Tag::make('div', $attrs)->appendRaw($tip->text));
+        }
+
+        if ($hasLegend) {
+            $div->append($chartParent);
+            $div->append($this->buildLegend());
         }
 
         return (string) $div;
+    }
+
+    private function buildLegend(): Tag
+    {
+        $legend = Tag::make('div', ['class' => 'svgraph-legend']);
+        foreach ($this->legendEntries as $entry) {
+            $swatchColor = Css::color($entry['color']) ?? 'currentColor';
+            $label = Tag::make('label', [
+                'for' => $entry['id'],
+                'class' => 'svgraph-legend__entry',
+            ]);
+            $label->appendRaw(
+                '<span class="svgraph-legend__swatch" style="background:' . $swatchColor . ';"></span>',
+            );
+            $label->append($entry['name']);
+            $legend->append($label);
+        }
+        return $legend;
     }
 
     private function buildStyle(): string
@@ -226,7 +292,50 @@ final class Wrapper
             $css .= $this->buildCrosshairStyle();
         }
 
+        if ($this->legendEntries !== []) {
+            $css .= $this->buildLegendStyle();
+        }
+
         return "<style>{$css}</style>";
+    }
+
+    /**
+     * Pure-CSS toggle legend: each hidden checkbox sits as a sibling of the
+     * chart parent and the legend container, so :not(:checked) ~ rules can
+     * hide the matching `series-{N}` elements and dim the legend entry.
+     *
+     * State is page-local — refreshing the page resets every toggle. Hiding
+     * a series does NOT rescale the chart's axes; the remaining series stay
+     * at their original positions.
+     */
+    private function buildLegendStyle(): string
+    {
+        $fontFamily = Css::fontFamily($this->theme->fontFamily) ?? 'inherit';
+        $fontSize = Css::length($this->theme->fontSize) ?? '0.75rem';
+        $textColor = Css::color($this->theme->textColor) ?? 'currentColor';
+
+        // Visually-hidden checkbox (still keyboard-focusable via the matched <label>).
+        $base = '.svgraph-toggle{position:absolute;width:1px;height:1px;padding:0;margin:-1px;'
+            . 'overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;}'
+            . ".svgraph-legend{display:flex;flex-wrap:wrap;gap:0.4em 1em;margin-top:0.5em;"
+            . "font-family:{$fontFamily};font-size:{$fontSize};color:{$textColor};line-height:1.2;}"
+            . '.svgraph-legend__entry{display:inline-flex;align-items:center;gap:0.4em;'
+            . 'cursor:pointer;user-select:none;transition:opacity 0.15s;}'
+            . '.svgraph-legend__swatch{display:inline-block;width:0.8em;height:0.8em;'
+            . 'border-radius:0.15em;flex:none;}';
+
+        $rules = '';
+        foreach ($this->legendEntries as $entry) {
+            $id = $entry['id'];
+            $n = $entry['seriesIndex'];
+            // id is built from chartId() (svgraph-{int}) + s{int}; only [a-zA-Z0-9-].
+            $rules .= "#{$id}:not(:checked)~.svgraph__chart .series-{$n}{display:none;}"
+                . "#{$id}:not(:checked)~.svgraph-legend label[for=\"{$id}\"]{opacity:0.4;}"
+                . "#{$id}:focus-visible~.svgraph-legend label[for=\"{$id}\"]{"
+                . 'outline:2px solid currentColor;outline-offset:2px;}';
+        }
+
+        return $base . $rules;
     }
 
     private function buildHoverStyle(): string

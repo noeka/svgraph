@@ -30,6 +30,7 @@ class LineChart extends AbstractChart
     protected bool $showGrid = false;
     protected bool $showPoints = false;
     protected bool $showCrosshair = false;
+    protected bool $showLegend = false;
 
     protected int $tickCount = 5;
 
@@ -131,6 +132,18 @@ class LineChart extends AbstractChart
         return $this;
     }
 
+    /**
+     * Render a CSS-only toggle legend below the chart. Each entry is a
+     * `<label>` bound to a hidden checkbox; clicking an entry hides its
+     * series and dims the entry. State is page-local (no JS = no
+     * persistence) and the Y axis does not rescale to the remaining series.
+     */
+    public function legend(bool $on = true): static
+    {
+        $this->showLegend = $on;
+        return $this;
+    }
+
     public function render(): string
     {
         if ($this->seriesCollection->isEmpty()) {
@@ -205,7 +218,30 @@ class LineChart extends AbstractChart
             $this->addLabels($wrapper, $xScale, $yScale);
         }
 
+        if ($this->showLegend) {
+            $wrapper->setLegend($this->buildLegendEntries());
+        }
+
         return $wrapper->render();
+    }
+
+    /**
+     * @return list<array{id: string, seriesIndex: int, name: string, color: string}>
+     */
+    private function buildLegendEntries(): array
+    {
+        $chartId = $this->chartId();
+        $entries = [];
+        foreach ($this->seriesCollection->items as $i => $series) {
+            $name = $series->name !== '' ? $series->name : 'Series ' . ($i + 1);
+            $entries[] = [
+                'id' => "{$chartId}-s{$i}",
+                'seriesIndex' => $i,
+                'name' => $name,
+                'color' => $this->resolveColor($series, $i),
+            ];
+        }
+        return $entries;
     }
 
     private function renderSeries(
