@@ -22,7 +22,8 @@ Three rules govern almost every decision:
 - PHP 8.3 or newer
 - [Composer](https://getcomposer.org/) 2.x
 - A PHP coverage driver (`pcov` or `xdebug`) — only required for
-  `composer mutate` and the coverage step locally; CI installs `pcov`.
+  `composer mutate` and the coverage step locally; CI installs `pcov`
+  for coverage but does not run mutation testing.
 
 ## Setup
 
@@ -102,21 +103,26 @@ composer check         # confirm everything passes
 
 ### Infection (`composer mutate`)
 
-Mutation testing on `src/`. Configured in `infection.json5`; results are
-written to `build/infection/`. Infection requires a coverage driver —
-install `pcov` (faster) or `xdebug` first.
+Mutation testing on `src/`. Configured in `infection.json5`; results
+are written to `build/infection/`. Infection requires a coverage
+driver — install `pcov` (faster) or `xdebug` first.
 
 ```bash
 composer mutate
 ```
 
-This **runs on every pull request** via the `Infection` workflow on PHP
-8.3. Thresholds live in `infection.json5` (`minMsi`, `minCoveredMsi`)
-and are ratcheted upward as the suite improves. Lowering them to make
-CI green is not the answer — strengthen the assertions instead.
+**Local-only — not run in CI.** Mutation testing is slow (a few
+minutes against the full `src/`) and the project has decided not to
+gate every push on it. Use it locally when changing math/geometry
+code (`src/Geometry/`, `src/Data/Series.php`) or markup-emitting code
+(`src/Svg/Wrapper.php`, `src/Charts/*`) to find assertions that don't
+actually constrain behavior. A surviving mutator is a hint that the
+test suite would not catch a real regression at that line.
 
-The workflow can also be triggered manually from the Actions tab if
-you want a fresh score against a non-PR branch.
+Thresholds live in `infection.json5` (`minMsi`, `minCoveredMsi`); a
+local run that drops below them exits non-zero, which is a signal to
+strengthen assertions before opening the PR. Ratchet the thresholds
+upward in the same PR that improves the suite.
 
 ### Snapshot assertions
 
@@ -180,10 +186,8 @@ covers PHP 8.3, 8.4, 8.5. Each job runs:
 5. `vendor/bin/phpunit` with coverage
 6. 90% line-coverage gate
 
-A separate `Infection` workflow runs on every pull request on PHP 8.3
-with `pcov`. It gates against the thresholds in `infection.json5`.
-
-Image regeneration is **not** in CI.
+Mutation testing (`composer mutate`) and image regeneration
+(`composer docs:images`) are **not** in CI — both are local-only.
 
 ## Regenerating example images
 
