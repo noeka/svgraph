@@ -41,6 +41,8 @@ objects. Multi-series via [`addSeries()`](#multi-series).
 | `->crosshair(bool = true)` | `false` | Hover crosshair: vertical guide + multi-series tooltip on the nearest x. |
 | `->ticks(int)` | `5` | Number of y-axis ticks (clamped to ≥ 2). Also drives x-axis tick density when `timeAxis()` is on. |
 | `->timeAxis(?locale, ?tz, ?format)` | off | Treat point x-values as `DateTimeImmutable` and render a locale-aware time x-axis. See [Time / date axis](#time--date-axis). |
+| `->logScale(base = 10, axis = 'left')` | linear | Plot the chosen Y axis on a logarithmic scale. See [Log scale](#log-scale). |
+| `->secondaryAxis(?Scale)` | off | Enable a second Y axis on the right edge for series flagged with `Series::onAxis('right')`. See [Dual Y axis](#dual-y-axis). |
 | `->aspect(float)` | `2.5` | Width-to-height ratio. |
 | `->cssClass(?string)` | `null` | Extra class on the wrapper. |
 | `->theme(Theme)` | `Theme::default()` | Colors, typography, hover styling. |
@@ -198,6 +200,110 @@ If `ext-intl` is not installed, the axis still renders — `formatTick()`
 falls back to `DateTimeInterface::format()` with a PHP-format string
 equivalent of the auto-selected ICU pattern (e.g. `M j` instead of
 `MMM d`). Locale-aware month names require ext-intl.
+
+## Log scale
+
+Plot the Y axis on a logarithmic scale when your data spans several
+orders of magnitude — file sizes, request latency, revenue across
+decades. A linear axis would crush the smaller values into a single
+pixel band; a log axis gives every decade equal vertical space.
+
+```php
+use Noeka\Svgraph\Chart;
+
+Chart::line([
+    ['1B', 1], ['10B', 10], ['100B', 100],
+    ['1KB', 1_000], ['10KB', 10_000], ['100KB', 100_000],
+    ['1MB', 1_000_000],
+])
+    ->logScale()
+    ->axes()->grid()->points()
+    ->stroke('#8b5cf6');
+```
+
+![Log-scale line chart](../images/line-log-scale.svg)
+
+Tick marks land on powers of the configured base (default 10) — `1`,
+`10`, `100`, … — chosen automatically from the data domain.
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `base` | `10.0` | Logarithm base. `2.0` for a per-octave axis (binary sizes), `M_E` for natural log. Must be > 1. |
+| `axis` | `'left'` | Which Y axis to apply. `'right'` (or `Axis::Right`) implicitly enables the secondary axis — see below. |
+
+**Constraints:**
+
+- All data on a log axis must be **strictly positive**. The chart
+  raises `InvalidArgumentException` at render time on zero or negative
+  values; there is no silent fallback to linear, since that would
+  produce a chart that lies about its axis.
+- The `->ticks(int)` count is ignored on log axes — tick density is
+  determined by the domain's decade span.
+
+## Dual Y axis
+
+A secondary Y axis on the right edge lets you plot two series with
+unrelated units against each other — e.g. revenue (USD) vs. conversion
+rate (%) — without one of them collapsing to a flat line because the
+other dominates the scale.
+
+Mark a series with `->onAxis('right')` to plot it against the secondary
+axis, then call `->secondaryAxis()` on the chart to enable rendering of
+the right-side ticks/labels:
+
+```php
+use Noeka\Svgraph\Chart;
+use Noeka\Svgraph\Data\Series;
+
+Chart::line(['Jan' => 12_000, 'Feb' => 18_500, 'Mar' => 21_300, 'Apr' => 26_800, 'May' => 32_100])
+    ->addSeries(
+        Series::of('Conversion %', ['Jan' => 1.4, 'Feb' => 1.8, 'Mar' => 2.1, 'Apr' => 2.6, 'May' => 3.1], '#ef4444')
+            ->onAxis('right'),
+    )
+    ->axes()->grid()->points()->smooth()
+    ->secondaryAxis()
+    ->stroke('#3b82f6');
+```
+
+![Dual-axis line chart](../images/line-dual-axis.svg)
+
+The right-axis tick labels adopt the colour of the first right-axis
+series, making the link between data and axis visually unambiguous.
+
+### Combining with log scale
+
+`logScale()` and `secondaryAxis()` compose freely. Any combination of
+linear/log on the left and right is allowed:
+
+```php
+// Linear left, log right (e.g. percentage vs. latency)
+Chart::line(['Jan' => 1.4, 'Feb' => 1.8, 'Mar' => 2.1])
+    ->addSeries(Series::of('p99', ['Jan' => 12, 'Feb' => 180, 'Mar' => 4_200])->onAxis('right'))
+    ->logScale(axis: 'right')
+    ->axes();
+
+// Or pass an explicit Scale for full control of the right domain:
+->secondaryAxis(LogScale::log(1.0, 10_000.0, 0.0, 0.0))
+```
+
+Targeting `'right'` from `logScale()` implicitly enables the secondary
+axis, so the explicit `secondaryAxis()` call is optional in that case.
+The supplied scale's range is replaced with the viewport's plot
+extents — only the domain (and `LogScale` base) is read from it.
+
+### Caveats
+
+- A dual axis with a **single series** is allowed but usually
+  misleading — viewers expect each axis to belong to a different
+  series. Prefer a single axis unless you genuinely have two
+  unrelated quantities to compare.
+- Toggling a series off via the [legend](#multi-series) does **not**
+  rescale either axis, just like single-axis charts.
+- The crosshair feature works unchanged: a single vertical guide
+  spans the full plot height across both axes.
+- Log-axis validation runs per axis: data on the linear side is never
+  checked for positivity, so you can mix a log left axis with a right
+  axis containing zero or negative values.
 
 ## Color resolution
 

@@ -62,6 +62,20 @@ Chart::line(['Jan' => 12, 'Feb' => 27, 'Mar' => 18])
 used as a tooltip prefix; the `color` overrides the per-series palette
 colour.
 
+### Assigning a series to a secondary Y axis
+
+For dual-axis line charts, mark a series for the right-hand axis with
+`->onAxis('right')` (or `Axis::Right`). Series default to the left axis;
+the chart's `->secondaryAxis()` enables rendering of the right-side
+ticks. See [Line chart › Dual Y axis](charts/line.md#dual-y-axis) for
+the full reference.
+
+```php
+use Noeka\Svgraph\Data\Series;
+
+Series::of('Conversion %', ['Jan' => 1.4, 'Feb' => 1.8])->onAxis('right');
+```
+
 ## Partition data (pie, donut)
 
 Pie and donut charts use `Slice::listFrom()`, which accepts:
