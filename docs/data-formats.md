@@ -25,11 +25,22 @@ helpers all delegate to `Series::from()`, which accepts:
 
 // 5. List of Point objects (full control)
 [new Point(10, 'Mon'), new Point(24, 'Tue', new Link('/days/tue'))]
+
+// 6. Tuples of [DateTimeImmutable, value] — drives a time x-axis when
+//    paired with LineChart::timeAxis(). The datetime is parked on
+//    Point::$time and used to position the point in time.
+[
+    [new DateTimeImmutable('2026-01-01'), 10],
+    [new DateTimeImmutable('2026-02-01'), 24],
+]
 ```
 
 Non-finite values (`NAN`, `±INF`) are silently dropped — they would
 otherwise propagate through the scale calculations and produce a flat
 chart of zeros.
+
+See [Line chart › Time / date axis](charts/line.md#time--date-axis) for the
+full `timeAxis()` API.
 
 ### Multi-series
 
@@ -87,6 +98,7 @@ Direct construction gives you the most control:
 use Noeka\Svgraph\Data\{Point, Series, Slice, Link};
 
 new Point(value: 42.0, label: 'Mon', link: new Link('/days/mon'));
+new Point(value: 42.0, time: new DateTimeImmutable('2026-01-15'));
 new Series(points: [new Point(10, 'Mon'), new Point(20, 'Tue')], name: 'Sales', color: '#3b82f6');
 new Slice(label: 'Stripe', value: 1240, color: '#10b981', link: new Link('/stripe'));
 ```

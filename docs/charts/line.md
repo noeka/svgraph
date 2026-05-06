@@ -39,7 +39,8 @@ objects. Multi-series via [`addSeries()`](#multi-series).
 | `->grid(bool = true)` | `false` | Show horizontal grid lines. |
 | `->points(bool = true)` | `false` | Render a marker dot at each data point. |
 | `->crosshair(bool = true)` | `false` | Hover crosshair: vertical guide + multi-series tooltip on the nearest x. |
-| `->ticks(int)` | `5` | Number of y-axis ticks (clamped to ≥ 2). |
+| `->ticks(int)` | `5` | Number of y-axis ticks (clamped to ≥ 2). Also drives x-axis tick density when `timeAxis()` is on. |
+| `->timeAxis(?locale, ?tz, ?format)` | off | Treat point x-values as `DateTimeImmutable` and render a locale-aware time x-axis. See [Time / date axis](#time--date-axis). |
 | `->aspect(float)` | `2.5` | Width-to-height ratio. |
 | `->cssClass(?string)` | `null` | Extra class on the wrapper. |
 | `->theme(Theme)` | `Theme::default()` | Colors, typography, hover styling. |
@@ -126,6 +127,77 @@ Notes:
   column.
 - Sparkline charts inherit this method but axes/grid normally aren't on
   sparklines, so the experience is best on full line charts.
+
+## Time / date axis
+
+Pass `DateTimeImmutable` objects as the x-values of your tuples and call
+`->timeAxis()` to render a time-aware x-axis. Points are positioned by
+time across the plot area (not by index), so unevenly-spaced timestamps
+plot at their true relative distance.
+
+```php
+use Noeka\Svgraph\Chart;
+
+$base = new DateTimeImmutable('2026-01-01T00:00:00Z');
+$points = [];
+for ($i = 0; $i < 30; $i++) {
+    $points[] = [$base->modify("+{$i} days"), 100 + sin($i / 3) * 6];
+}
+
+Chart::line($points)
+    ->axes()->grid()
+    ->timeAxis(tz: 'UTC')
+    ->stroke('#3b82f6');
+```
+
+![Time-axis line chart over 30 days](../images/line-time-axis.svg)
+
+The tick interval auto-selects across **seconds → minutes → hours → days
+→ months → years** based on the range and the `->ticks()` count. A
+five-year span lands on years; a 30-day span on days; a 24-hour span on
+hours. Ticks snap to whole-unit boundaries in the configured timezone.
+
+```php
+Chart::line([
+    [new DateTimeImmutable('2021-01-01T00:00:00Z'),  74],
+    [new DateTimeImmutable('2022-01-01T00:00:00Z'),  92],
+    [new DateTimeImmutable('2023-01-01T00:00:00Z'), 121],
+    [new DateTimeImmutable('2024-01-01T00:00:00Z'), 158],
+    [new DateTimeImmutable('2025-01-01T00:00:00Z'), 184],
+    [new DateTimeImmutable('2026-01-01T00:00:00Z'), 213],
+])
+    ->axes()->grid()->points()->smooth()
+    ->ticks(6)->timeAxis(tz: 'UTC')
+    ->stroke('#10b981')->fillBelow('#10b981', 0.15);
+```
+
+![Time-axis line chart over 5 years](../images/line-time-axis-years.svg)
+
+### Locale and timezone
+
+`timeAxis()` accepts three optional arguments, all passed through to
+the `TimeScale` that drives the x-axis:
+
+| Argument | Type | Description |
+|----------|------|-------------|
+| `locale` | `?string` | Any [ICU locale](https://www.icu-project.org/userguide/locale.html) (`en_US`, `fr_FR`, `ja_JP`, …). Used for month/day names. |
+| `tz` | `?string` | Any value `DateTimeZone::__construct` accepts (`UTC`, `Europe/Paris`, …). Ticks snap to local time in this zone. |
+| `format` | `?string` | Override the auto-selected pattern. Treated as an ICU pattern when ext-intl is present, otherwise as a `DateTime::format()` string. |
+
+```php
+Chart::line($points)
+    ->axes()->grid()
+    ->timeAxis(locale: 'fr_FR', tz: 'Europe/Paris');
+```
+
+![Time-axis line chart with French locale](../images/line-time-axis-locale.svg)
+
+### Fallback when ext-intl is missing
+
+If `ext-intl` is not installed, the axis still renders — `formatTick()`
+falls back to `DateTimeInterface::format()` with a PHP-format string
+equivalent of the auto-selected ICU pattern (e.g. `M j` instead of
+`MMM d`). Locale-aware month names require ext-intl.
 
 ## Color resolution
 
