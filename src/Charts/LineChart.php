@@ -8,6 +8,7 @@ use Noeka\Svgraph\Data\Series;
 use Noeka\Svgraph\Data\SeriesCollection;
 use Noeka\Svgraph\Geometry\Path;
 use Noeka\Svgraph\Geometry\Scale;
+use Noeka\Svgraph\Geometry\TimeScale;
 use Noeka\Svgraph\Geometry\Viewport;
 use Noeka\Svgraph\Svg\Label;
 use Noeka\Svgraph\Svg\Tag;
@@ -33,6 +34,11 @@ class LineChart extends AbstractChart
     protected bool $showLegend = false;
 
     protected int $tickCount = 5;
+
+    protected bool $useTimeAxis = false;
+    protected ?string $timeAxisLocale = null;
+    protected ?\DateTimeZone $timeAxisTz = null;
+    protected ?string $timeAxisFormat = null;
 
     public function __construct()
     {
@@ -133,6 +139,25 @@ class LineChart extends AbstractChart
     }
 
     /**
+     * Treat point x-values as datetimes. Series points carrying a
+     * `DateTimeImmutable` (e.g. from `[[$dt, 10], [$dt2, 24]]` tuples) are
+     * positioned by time across the plot area; the x-axis is labelled with
+     * locale-aware ticks chosen to fit `ticks()` count.
+     *
+     * `$tz` accepts any value `DateTimeZone::__construct` accepts. `$format`
+     * is treated as an ICU pattern when ext-intl is present, otherwise as a
+     * `DateTime::format()` string.
+     */
+    public function timeAxis(?string $locale = null, ?string $tz = null, ?string $format = null): static
+    {
+        $this->useTimeAxis = true;
+        $this->timeAxisLocale = $locale;
+        $this->timeAxisTz = $tz !== null ? new \DateTimeZone($tz) : null;
+        $this->timeAxisFormat = $format;
+        return $this;
+    }
+
+    /**
      * Render a CSS-only toggle legend below the chart. Each entry is a
      * `<label>` bound to a hidden checkbox; clicking an entry hides its
      * series and dims the entry. State is page-local (no JS = no
@@ -151,9 +176,10 @@ class LineChart extends AbstractChart
         }
 
         $hasLabels = $this->seriesCollection->hasLabels();
+        $hasTimeAxis = $this->useTimeAxis && $this->collectTimes() !== [];
         $padTop = $this->showAxes || $this->showGrid ? 4.0 : 0.0;
         $padRight = $this->showAxes || $this->showGrid ? 2.0 : 0.0;
-        $padBottom = $hasLabels && ($this->showAxes || $this->showGrid) ? 14.0 : 0.0;
+        $padBottom = ($hasLabels || $hasTimeAxis) && ($this->showAxes || $this->showGrid) ? 14.0 : 0.0;
         $padLeft = $this->showAxes || $this->showGrid ? 12.0 : 0.0;
 
         $viewport = new Viewport(100, 100, $padTop, $padRight, $padBottom, $padLeft);
@@ -175,6 +201,9 @@ class LineChart extends AbstractChart
 
         $xScale = Scale::linear(0, max(1, $maxLen - 1), $viewport->plotLeft(), $viewport->plotRight());
         $yScale = Scale::linear($domainMin, $domainMax, $viewport->plotTop(), $viewport->plotBottom(), invert: true);
+        $timeScale = $hasTimeAxis ? $this->buildTimeScale($viewport) : null;
+
+        $primaryXs = $this->buildPrimaryXs($maxLen, $xScale, $timeScale);
 
         $strokeWidth = $this->strokeWidth ?? $this->theme->strokeWidth;
 
@@ -198,24 +227,24 @@ class LineChart extends AbstractChart
         }
 
         if ($this->showCrosshair) {
-            foreach ($this->buildCrosshairLines($maxLen, $xScale, $viewport) as $line) {
+            foreach ($this->buildCrosshairLines($primaryXs, $viewport) as $line) {
                 $wrapper->add($line);
             }
         }
 
         foreach ($this->seriesCollection->items as $i => $series) {
-            $this->renderSeries($wrapper, $series, $i, $xScale, $yScale, $viewport, $strokeWidth);
+            $this->renderSeries($wrapper, $series, $i, $xScale, $yScale, $viewport, $strokeWidth, $timeScale);
         }
 
         if ($this->showCrosshair) {
-            foreach ($this->buildCrosshairHits($maxLen, $xScale, $viewport) as $hit) {
+            foreach ($this->buildCrosshairHits($primaryXs, $viewport) as $hit) {
                 $wrapper->add($hit);
             }
             $wrapper->enableCrosshair($maxLen);
         }
 
         if ($this->showAxes) {
-            $this->addLabels($wrapper, $xScale, $yScale);
+            $this->addLabels($wrapper, $xScale, $yScale, $timeScale);
         }
 
         if ($this->showLegend) {
@@ -223,6 +252,68 @@ class LineChart extends AbstractChart
         }
 
         return $wrapper->render();
+    }
+
+    /**
+     * @return list<\DateTimeImmutable>
+     */
+    private function collectTimes(): array
+    {
+        $times = [];
+        foreach ($this->seriesCollection->items as $series) {
+            foreach ($series->points as $point) {
+                if ($point->time !== null) {
+                    $times[] = $point->time;
+                }
+            }
+        }
+        return $times;
+    }
+
+    private function buildTimeScale(Viewport $viewport): ?TimeScale
+    {
+        $times = $this->collectTimes();
+        if ($times === []) {
+            return null;
+        }
+        return TimeScale::fromValues(
+            $times,
+            $viewport->plotLeft(),
+            $viewport->plotRight(),
+            $this->timeAxisLocale,
+            $this->timeAxisTz,
+            $this->timeAxisFormat,
+        );
+    }
+
+    /**
+     * X-coordinate per column index, used for crosshair geometry. In time
+     * mode the longest time-bearing series drives the layout; columns
+     * without a time fall back to the index-based scale.
+     *
+     * @return list<float>
+     */
+    private function buildPrimaryXs(int $maxLen, Scale $xScale, ?TimeScale $timeScale): array
+    {
+        $primary = null;
+        if ($timeScale instanceof TimeScale) {
+            foreach ($this->seriesCollection->items as $series) {
+                if ($series->isEmpty()) {
+                    continue;
+                }
+                if ($primary === null || count($series) > count($primary)) {
+                    $primary = $series;
+                }
+            }
+        }
+        $xs = [];
+        for ($i = 0; $i < $maxLen; $i++) {
+            $time = $primary !== null ? ($primary->points[$i]->time ?? null) : null;
+            $xs[] = $time !== null && $timeScale instanceof TimeScale
+                ? $timeScale->mapDate($time)
+                : $xScale->map((float) $i);
+        }
+        return $xs;
     }
 
     /**
@@ -252,6 +343,7 @@ class LineChart extends AbstractChart
         Scale $yScale,
         Viewport $viewport,
         float $strokeWidth,
+        ?TimeScale $timeScale,
     ): void {
         if ($series->isEmpty()) {
             return;
@@ -260,7 +352,11 @@ class LineChart extends AbstractChart
         $color = $this->resolveColor($series, $index);
         $points = [];
         foreach ($series->values as $i => $v) {
-            $points[] = [$xScale->map((float) $i), $yScale->map($v)];
+            $time = $series->points[$i]->time ?? null;
+            $x = $time !== null && $timeScale instanceof TimeScale
+                ? $timeScale->mapDate($time)
+                : $xScale->map((float) $i);
+            $points[] = [$x, $yScale->map($v)];
         }
 
         if ($this->fillEnabled) {
@@ -422,13 +518,13 @@ class LineChart extends AbstractChart
      * Vertical guide lines, one per x-column. Hidden by default; the wrapper's
      * crosshair CSS reveals the line whose `data-x` matches the hovered column.
      *
+     * @param list<float> $xs
      * @return list<Tag>
      */
-    protected function buildCrosshairLines(int $maxLen, Scale $xScale, Viewport $viewport): array
+    protected function buildCrosshairLines(array $xs, Viewport $viewport): array
     {
         $lines = [];
-        for ($i = 0; $i < $maxLen; $i++) {
-            $x = $xScale->map((float) $i);
+        foreach ($xs as $i => $x) {
             $lines[] = Tag::void('line', [
                 'class' => 'svgraph-crosshair',
                 'data-x' => (string) $i,
@@ -451,24 +547,21 @@ class LineChart extends AbstractChart
      * nearest column. Emitted last in the SVG so they sit above the data and
      * reliably catch pointer events.
      *
+     * @param list<float> $xs
      * @return list<Tag>
      */
-    protected function buildCrosshairHits(int $maxLen, Scale $xScale, Viewport $viewport): array
+    protected function buildCrosshairHits(array $xs, Viewport $viewport): array
     {
         $top = $viewport->plotTop();
         $height = $viewport->plotBottom() - $top;
         $left = $viewport->plotLeft();
         $right = $viewport->plotRight();
-
-        $xs = [];
-        for ($i = 0; $i < $maxLen; $i++) {
-            $xs[] = $xScale->map((float) $i);
-        }
+        $count = count($xs);
 
         $rects = [];
         foreach ($xs as $i => $x) {
             $colLeft = $i === 0 ? $left : ($xs[$i - 1] + $x) / 2;
-            $colRight = $i === $maxLen - 1 ? $right : ($x + $xs[$i + 1]) / 2;
+            $colRight = $i === $count - 1 ? $right : ($x + $xs[$i + 1]) / 2;
             $rects[] = Tag::void('rect', [
                 'class' => 'svgraph-x-hit',
                 'data-x' => (string) $i,
@@ -509,7 +602,7 @@ class LineChart extends AbstractChart
         ];
     }
 
-    protected function addLabels(Wrapper $wrapper, Scale $xScale, Scale $yScale): void
+    protected function addLabels(Wrapper $wrapper, Scale $xScale, Scale $yScale, ?TimeScale $timeScale): void
     {
         foreach ($yScale->ticks($this->tickCount) as $tick) {
             $y = $yScale->map($tick);
@@ -520,6 +613,20 @@ class LineChart extends AbstractChart
                 align: 'start',
                 verticalAlign: 'middle',
             ));
+        }
+
+        if ($timeScale instanceof TimeScale) {
+            foreach ($timeScale->timeTicks($this->tickCount) as $tick) {
+                $x = $timeScale->mapDate($tick);
+                $wrapper->label(new Label(
+                    text: $timeScale->formatTick($tick, $this->tickCount),
+                    left: $x,
+                    bottom: 0,
+                    align: 'center',
+                    verticalAlign: 'bottom',
+                ));
+            }
+            return;
         }
 
         foreach ($this->seriesCollection->commonLabels() as $i => $label) {

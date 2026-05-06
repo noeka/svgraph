@@ -8,8 +8,11 @@ namespace Noeka\Svgraph\Geometry;
  * Linear scale mapping a numeric domain [min, max] onto a coordinate range
  * [start, end]. Used for both axes. When invert=true, the domain min maps to
  * the range end (typical for y-axes since SVG y grows downward).
+ *
+ * Subclassed by `TimeScale` for date/time axes; the linear `map()` is reused
+ * verbatim against a domain expressed in unix seconds.
  */
-final readonly class Scale
+readonly class Scale
 {
     public function __construct(
         public float $domainMin,
