@@ -13,9 +13,6 @@ namespace Noeka\Svgraph\Data;
  */
 final readonly class Series implements \Countable
 {
-    /** @var list<Point> */
-    public array $points;
-
     /** @var list<float> */
     public array $values;
 
@@ -27,17 +24,15 @@ final readonly class Series implements \Countable
      * @param list<Point> $points
      */
     public function __construct(
-        array $points,
+        public array $points,
         public string $name = '',
         public ?string $color = null,
     ) {
-        $this->points = $points;
-
         $values = [];
         $min = INF;
         $max = -INF;
         $sum = 0.0;
-        foreach ($points as $p) {
+        foreach ($this->points as $p) {
             $v = $p->value;
             $values[] = $v;
             if ($v < $min) {
@@ -176,7 +171,7 @@ final readonly class Series implements \Countable
     /** @return list<string|null> */
     public function labels(): array
     {
-        return array_map(static fn(Point $p) => $p->label, $this->points);
+        return array_map(static fn(Point $p): ?string => $p->label, $this->points);
     }
 
     public function hasLabels(): bool

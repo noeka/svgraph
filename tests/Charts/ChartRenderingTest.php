@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Noeka\Svgraph\Tests\Charts;
 
+use Noeka\Svgraph\Data\Series;
 use Noeka\Svgraph\Chart;
 use Noeka\Svgraph\Data\Link;
 use Noeka\Svgraph\Data\Point;
@@ -847,7 +848,7 @@ final class ChartRenderingTest extends TestCase
     public function test_line_crosshair_works_for_multi_series(): void
     {
         $svg = Chart::line(['Jan' => 12, 'Feb' => 27, 'Mar' => 18])
-            ->addSeries(\Noeka\Svgraph\Data\Series::of('Costs', ['Jan' => 6, 'Feb' => 14, 'Mar' => 9]))
+            ->addSeries(Series::of('Costs', ['Jan' => 6, 'Feb' => 14, 'Mar' => 9]))
             ->crosshair()
             ->render();
 

@@ -9,13 +9,8 @@ final readonly class Theme
     /**
      * @param list<string> $palette          Hex/CSS colors used in order for multi-series or partition charts.
      * @param string       $stroke           Default stroke color for lines/axes.
-     * @param float        $strokeWidth
      * @param string       $fill             Default fill color (e.g. for bars when no color specified).
-     * @param string       $textColor
-     * @param string       $fontFamily
      * @param string       $fontSize         CSS length, e.g. "0.75rem".
-     * @param string       $gridColor
-     * @param string       $axisColor
      * @param string       $trackColor       Background color for progress track and donut "empty" portion.
      *
      * CSS-hover tooltip theming tokens — these map to the following CSS custom

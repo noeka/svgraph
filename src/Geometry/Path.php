@@ -126,7 +126,7 @@ final class Path
         [$x1, $y1] = self::polar($cx, $cy, $outerRadius, $startAngle);
         [$x2, $y2] = self::polar($cx, $cy, $outerRadius, $endAngle);
 
-        $f = static fn(float $v) => Tag::formatFloat($v);
+        $f = static fn(float $v): string => Tag::formatFloat($v);
 
         if ($innerRadius <= 0.0) {
             return "M{$f($cx)},{$f($cy)} L{$f($x1)},{$f($y1)} "
@@ -144,7 +144,7 @@ final class Path
 
     private static function fullRing(float $cx, float $cy, float $outerRadius, float $innerRadius): string
     {
-        $f = static fn(float $v) => Tag::formatFloat($v);
+        $f = static fn(float $v): string => Tag::formatFloat($v);
         $top = $cy - $outerRadius;
         $bottom = $cy + $outerRadius;
         $outer = "M{$f($cx)},{$f($top)} "

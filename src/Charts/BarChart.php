@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Noeka\Svgraph\Charts;
 
+use Noeka\Svgraph\Data\Link;
 use Noeka\Svgraph\Data\Series;
 use Noeka\Svgraph\Data\SeriesCollection;
 use Noeka\Svgraph\Geometry\Scale;
@@ -15,9 +16,9 @@ use Noeka\Svgraph\Svg\Wrapper;
 
 class BarChart extends AbstractChart
 {
-    private const MODE_AUTO = 'auto';
-    private const MODE_GROUPED = 'grouped';
-    private const MODE_STACKED = 'stacked';
+    private const string MODE_AUTO = 'auto';
+    private const string MODE_GROUPED = 'grouped';
+    private const string MODE_STACKED = 'stacked';
 
     protected SeriesCollection $seriesCollection;
 
@@ -233,7 +234,7 @@ class BarChart extends AbstractChart
         }
 
         if ($mode === self::MODE_STACKED) {
-            $this->renderVerticalStacked($wrapper, $viewport, $yScale, $slotWidth, $baseY);
+            $this->renderVerticalStacked($wrapper, $viewport, $yScale, $slotWidth);
         } else {
             $this->renderVerticalGrouped($wrapper, $viewport, $yScale, $slotWidth, $baseY);
         }
@@ -263,7 +264,10 @@ class BarChart extends AbstractChart
 
         if ($hasLabels) {
             foreach ($this->seriesCollection->commonLabels() as $i => $label) {
-                if ($label === null || $label === '') {
+                if ($label === null) {
+                    continue;
+                }
+                if ($label === '') {
                     continue;
                 }
                 $x = $viewport->plotLeft() + ($i + 0.5) * $slotWidth;
@@ -338,7 +342,6 @@ class BarChart extends AbstractChart
         Viewport $viewport,
         Scale $yScale,
         float $slotWidth,
-        float $baseY,
     ): void {
         $chartId = $this->chartId();
         $barWidth = $slotWidth * (1.0 - $this->gap);
@@ -404,7 +407,7 @@ class BarChart extends AbstractChart
         float $height,
         string $color,
         string $tipText,
-        ?\Noeka\Svgraph\Data\Link $link,
+        ?Link $link,
         string $tfo,
         int $stagger,
     ): void {
@@ -489,14 +492,17 @@ class BarChart extends AbstractChart
         }
 
         if ($mode === self::MODE_STACKED) {
-            $this->renderHorizontalStacked($wrapper, $viewport, $xScale, $slotHeight, $baseX);
+            $this->renderHorizontalStacked($wrapper, $viewport, $xScale, $slotHeight);
         } else {
             $this->renderHorizontalGrouped($wrapper, $viewport, $xScale, $slotHeight, $baseX);
         }
 
         if ($hasLabels) {
             foreach ($this->seriesCollection->commonLabels() as $i => $label) {
-                if ($label === null || $label === '') {
+                if ($label === null) {
+                    continue;
+                }
+                if ($label === '') {
                     continue;
                 }
                 $y = $viewport->plotTop() + ($i + 0.5) * $slotHeight;
@@ -584,7 +590,6 @@ class BarChart extends AbstractChart
         Viewport $viewport,
         Scale $xScale,
         float $slotHeight,
-        float $baseX,
     ): void {
         $chartId = $this->chartId();
         $barHeight = $slotHeight * (1.0 - $this->gap);
@@ -648,7 +653,7 @@ class BarChart extends AbstractChart
         float $height,
         string $color,
         string $tipText,
-        ?\Noeka\Svgraph\Data\Link $link,
+        ?Link $link,
         string $tfo,
         int $stagger,
     ): void {

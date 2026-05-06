@@ -117,6 +117,7 @@ so users who request reduced motion always see a static chart. Details:
 - [CSS customization](docs/css-customization.md) — `.series-{N}` hooks, `--svgraph-*` properties
 - [Recipes](docs/recipes.md) — Blade, Twig, email, caching
 - [docs/index.md](docs/index.md) — full table of contents
+- [Contributing](CONTRIBUTING.md) — developer setup, tooling, workflow
 
 ## Regenerating example images
 

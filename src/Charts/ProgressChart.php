@@ -12,21 +12,17 @@ use Noeka\Svgraph\Svg\Wrapper;
 
 final class ProgressChart extends AbstractChart
 {
-    private float $value = 0.0;
-    private float $target = 100.0;
     private ?string $color = null;
     private ?string $trackColor = null;
     private float $cornerRadius = 50.0;
     private bool $showValue = false;
     private ?string $valueLabel = null;
 
-    public function __construct(float $value = 0.0, float $target = 100.0)
+    public function __construct(private float $value = 0.0, private float $target = 100.0)
     {
         parent::__construct();
         $this->variantClass = 'progress';
         $this->aspectRatio = 20.0;
-        $this->value = $value;
-        $this->target = $target;
     }
 
     public function value(float $value): static

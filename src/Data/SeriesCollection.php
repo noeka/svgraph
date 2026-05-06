@@ -13,16 +13,10 @@ namespace Noeka\Svgraph\Data;
  */
 final readonly class SeriesCollection implements \Countable
 {
-    /** @var list<Series> */
-    public array $items;
-
     /**
      * @param list<Series> $items
      */
-    public function __construct(array $items = [])
-    {
-        $this->items = $items;
-    }
+    public function __construct(public array $items = []) {}
 
     public function with(Series $series): self
     {

@@ -32,6 +32,7 @@ jobs:
         run: |
           composer lint
           composer cs
+          composer rector
 
       - name: Tests with coverage
         run: vendor/bin/phpunit --coverage-text --coverage-filter=src --coverage-clover=coverage.xml
