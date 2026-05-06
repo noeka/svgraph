@@ -4,8 +4,11 @@ declare(strict_types=1);
 
 namespace Noeka\Svgraph\Charts;
 
+use InvalidArgumentException;
+use Noeka\Svgraph\Data\Axis;
 use Noeka\Svgraph\Data\Series;
 use Noeka\Svgraph\Data\SeriesCollection;
+use Noeka\Svgraph\Geometry\LogScale;
 use Noeka\Svgraph\Geometry\Path;
 use Noeka\Svgraph\Geometry\Scale;
 use Noeka\Svgraph\Geometry\TimeScale;
@@ -39,6 +42,11 @@ class LineChart extends AbstractChart
     protected ?string $timeAxisLocale = null;
     protected ?\DateTimeZone $timeAxisTz = null;
     protected ?string $timeAxisFormat = null;
+
+    protected ?float $leftLogBase = null;
+    protected ?float $rightLogBase = null;
+    protected bool $secondaryAxisEnabled = false;
+    protected ?Scale $secondaryAxisOverride = null;
 
     public function __construct()
     {
@@ -169,6 +177,49 @@ class LineChart extends AbstractChart
         return $this;
     }
 
+    /**
+     * Plot the chosen Y axis on a logarithmic scale. Useful for orders-of-
+     * magnitude data — revenue across decades, file sizes, request latency.
+     *
+     * Targeting `'right'` implicitly enables the secondary Y axis (you can
+     * still call `secondaryAxis()` to override the auto-derived domain).
+     *
+     * Throws `InvalidArgumentException` at render time if the axis ends up
+     * with non-positive data; log scales require strictly positive values.
+     */
+    public function logScale(float $base = 10.0, Axis|string $axis = Axis::Left): static
+    {
+        $resolved = $axis instanceof Axis ? $axis : Axis::from($axis);
+        if ($resolved === Axis::Right) {
+            $this->rightLogBase = $base;
+            $this->secondaryAxisEnabled = true;
+        } else {
+            $this->leftLogBase = $base;
+        }
+        return $this;
+    }
+
+    /**
+     * Enable a second Y axis on the right edge of the plot. Series carrying
+     * `Axis::Right` (via `Series::onAxis('right')`) plot against this axis;
+     * the rest stay on the primary axis.
+     *
+     * Pass a `Scale` to fix the secondary domain (and pick log/linear)
+     * explicitly; otherwise the chart auto-derives a linear domain from
+     * right-axis series. The supplied scale's range is replaced with the
+     * viewport's plot extents — only the domain (and `LogScale` base) is
+     * read from it.
+     */
+    public function secondaryAxis(?Scale $scale = null): static
+    {
+        $this->secondaryAxisEnabled = true;
+        $this->secondaryAxisOverride = $scale;
+        if ($scale instanceof LogScale) {
+            $this->rightLogBase = $scale->base;
+        }
+        return $this;
+    }
+
     public function render(): string
     {
         if ($this->seriesCollection->isEmpty()) {
@@ -177,8 +228,11 @@ class LineChart extends AbstractChart
 
         $hasLabels = $this->seriesCollection->hasLabels();
         $hasTimeAxis = $this->useTimeAxis && $this->collectTimes() !== [];
+        $hasSecondary = $this->secondaryAxisEnabled;
         $padTop = $this->showAxes || $this->showGrid ? 4.0 : 0.0;
-        $padRight = $this->showAxes || $this->showGrid ? 2.0 : 0.0;
+        $padRight = $hasSecondary && ($this->showAxes || $this->showGrid)
+            ? 12.0
+            : ($this->showAxes || $this->showGrid ? 2.0 : 0.0);
         $padBottom = ($hasLabels || $hasTimeAxis) && ($this->showAxes || $this->showGrid) ? 14.0 : 0.0;
         $padLeft = $this->showAxes || $this->showGrid ? 12.0 : 0.0;
 
@@ -189,18 +243,11 @@ class LineChart extends AbstractChart
             return $this->renderEmpty();
         }
 
-        $min = $this->seriesCollection->valueMin();
-        $max = $this->seriesCollection->valueMax();
-        if ($min === $max) {
-            $min -= 1.0;
-            $max += 1.0;
-        }
-        $padding = ($max - $min) * 0.1;
-        $domainMin = $min - $padding;
-        $domainMax = $max + $padding;
-
         $xScale = Scale::linear(0, max(1, $maxLen - 1), $viewport->plotLeft(), $viewport->plotRight());
-        $yScale = Scale::linear($domainMin, $domainMax, $viewport->plotTop(), $viewport->plotBottom(), invert: true);
+        $leftYScale = $this->buildYScale(Axis::Left, $viewport, $this->leftLogBase, null);
+        $rightYScale = $hasSecondary
+            ? $this->buildYScale(Axis::Right, $viewport, $this->rightLogBase, $this->secondaryAxisOverride)
+            : null;
         $timeScale = $hasTimeAxis ? $this->buildTimeScale($viewport) : null;
 
         $primaryXs = $this->buildPrimaryXs($maxLen, $xScale, $timeScale);
@@ -211,13 +258,13 @@ class LineChart extends AbstractChart
         $wrapper->setUserClass($this->cssClass);
 
         if ($this->showGrid) {
-            foreach ($this->buildGridLines($yScale, $viewport) as $gridLine) {
+            foreach ($this->buildGridLines($leftYScale, $viewport) as $gridLine) {
                 $wrapper->add($gridLine);
             }
         }
 
         if ($this->showAxes) {
-            foreach ($this->buildAxisLines($viewport) as $axis) {
+            foreach ($this->buildAxisLines($viewport, $rightYScale instanceof Scale) as $axis) {
                 $wrapper->add($axis);
             }
         }
@@ -233,7 +280,8 @@ class LineChart extends AbstractChart
         }
 
         foreach ($this->seriesCollection->items as $i => $series) {
-            $this->renderSeries($wrapper, $series, $i, $xScale, $yScale, $viewport, $strokeWidth, $timeScale);
+            $ys = $series->axis === Axis::Right && $rightYScale instanceof Scale ? $rightYScale : $leftYScale;
+            $this->renderSeries($wrapper, $series, $i, $xScale, $ys, $viewport, $strokeWidth, $timeScale);
         }
 
         if ($this->showCrosshair) {
@@ -244,7 +292,7 @@ class LineChart extends AbstractChart
         }
 
         if ($this->showAxes) {
-            $this->addLabels($wrapper, $xScale, $yScale, $timeScale);
+            $this->addLabels($wrapper, $xScale, $leftYScale, $rightYScale, $timeScale, $viewport);
         }
 
         if ($this->showLegend) {
@@ -252,6 +300,82 @@ class LineChart extends AbstractChart
         }
 
         return $wrapper->render();
+    }
+
+    /**
+     * Build a Y scale for the requested axis. Combines the min/max of every
+     * series assigned to that axis, applies 10% padding (linear) or one
+     * decade's headroom (log), and returns either a `Scale` or `LogScale`.
+     *
+     * `$override` lets a caller supply a fixed domain via `secondaryAxis()`.
+     * Its range is replaced with the viewport's plot extents (only domain
+     * and, for `LogScale`, base are read from the override).
+     */
+    private function buildYScale(Axis $axis, Viewport $viewport, ?float $logBase, ?Scale $override): Scale
+    {
+        $rangeStart = $viewport->plotTop();
+        $rangeEnd = $viewport->plotBottom();
+
+        if ($override instanceof LogScale) {
+            return new LogScale($override->domainMin, $override->domainMax, $rangeStart, $rangeEnd, true, $override->base);
+        }
+        if ($override instanceof Scale) {
+            return new Scale($override->domainMin, $override->domainMax, $rangeStart, $rangeEnd, true);
+        }
+
+        [$min, $max] = $this->axisDomain($axis);
+        if ($min === $max) {
+            $min -= 1.0;
+            $max += 1.0;
+        }
+
+        if ($logBase !== null) {
+            if ($min <= 0.0) {
+                throw new InvalidArgumentException(
+                    'Log scale on the ' . $axis->value . ' Y axis requires strictly positive data; '
+                    . 'minimum value seen is ' . $min . '.',
+                );
+            }
+            return LogScale::log($min, $max, $rangeStart, $rangeEnd, invert: true, base: $logBase);
+        }
+
+        $padding = ($max - $min) * 0.1;
+        return Scale::linear($min - $padding, $max + $padding, $rangeStart, $rangeEnd, invert: true);
+    }
+
+    /**
+     * Combined min/max across every non-empty series on the given axis.
+     * Falls back to the full collection when no series target the requested
+     * axis (e.g. secondary axis enabled without any right-flagged series),
+     * so the secondary axis still mirrors the primary's data range.
+     *
+     * @return array{0: float, 1: float}
+     */
+    private function axisDomain(Axis $axis): array
+    {
+        $min = INF;
+        $max = -INF;
+        $sawAny = false;
+        foreach ($this->seriesCollection->items as $series) {
+            if ($series->isEmpty()) {
+                continue;
+            }
+            if ($series->axis !== $axis) {
+                continue;
+            }
+            $sawAny = true;
+            if ($series->min < $min) {
+                $min = $series->min;
+            }
+            if ($series->max > $max) {
+                $max = $series->max;
+            }
+        }
+        if (!$sawAny) {
+            $min = $this->seriesCollection->valueMin();
+            $max = $this->seriesCollection->valueMax();
+        }
+        return [$min, $max];
     }
 
     /**
@@ -578,9 +702,10 @@ class LineChart extends AbstractChart
     /**
      * @return list<Tag>
      */
-    protected function buildAxisLines(Viewport $viewport): array
+    protected function buildAxisLines(Viewport $viewport, bool $secondary = false): array
     {
-        return [
+        $rightAxisColor = $secondary ? $this->resolveAxisColor(Axis::Right) : $this->theme->axisColor;
+        $lines = [
             Tag::void('line', [
                 'x1' => Tag::formatFloat($viewport->plotLeft()),
                 'x2' => Tag::formatFloat($viewport->plotLeft()),
@@ -600,10 +725,44 @@ class LineChart extends AbstractChart
                 'vector-effect' => 'non-scaling-stroke',
             ]),
         ];
+        if ($secondary) {
+            $lines[] = Tag::void('line', [
+                'x1' => Tag::formatFloat($viewport->plotRight()),
+                'x2' => Tag::formatFloat($viewport->plotRight()),
+                'y1' => Tag::formatFloat($viewport->plotTop()),
+                'y2' => Tag::formatFloat($viewport->plotBottom()),
+                'stroke' => $rightAxisColor,
+                'stroke-width' => '1',
+                'vector-effect' => 'non-scaling-stroke',
+            ]);
+        }
+        return $lines;
     }
 
-    protected function addLabels(Wrapper $wrapper, Scale $xScale, Scale $yScale, ?TimeScale $timeScale): void
+    /**
+     * Pick a tinting color for an axis. The secondary axis adopts the color
+     * of the first series assigned to it so the link between axis and data
+     * is visually obvious; if no series is assigned, we fall back to the
+     * theme axis color.
+     */
+    private function resolveAxisColor(Axis $axis): string
     {
+        foreach ($this->seriesCollection->items as $i => $series) {
+            if ($series->axis === $axis && !$series->isEmpty()) {
+                return $this->resolveColor($series, $i);
+            }
+        }
+        return $this->theme->axisColor;
+    }
+
+    protected function addLabels(
+        Wrapper $wrapper,
+        Scale $xScale,
+        Scale $yScale,
+        ?Scale $rightYScale,
+        ?TimeScale $timeScale,
+        Viewport $viewport,
+    ): void {
         foreach ($yScale->ticks($this->tickCount) as $tick) {
             $y = $yScale->map($tick);
             $wrapper->label(new Label(
@@ -613,6 +772,21 @@ class LineChart extends AbstractChart
                 align: 'start',
                 verticalAlign: 'middle',
             ));
+        }
+
+        if ($rightYScale instanceof Scale) {
+            $rightColor = $this->resolveAxisColor(Axis::Right);
+            foreach ($rightYScale->ticks($this->tickCount) as $tick) {
+                $y = $rightYScale->map($tick);
+                $wrapper->label(new Label(
+                    text: $this->formatNumber($tick),
+                    left: $viewport->plotRight(),
+                    top: $y,
+                    align: 'start',
+                    verticalAlign: 'middle',
+                    color: $rightColor,
+                ));
+            }
         }
 
         if ($timeScale instanceof TimeScale) {

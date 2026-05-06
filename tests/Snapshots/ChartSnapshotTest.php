@@ -6,6 +6,7 @@ namespace Noeka\Svgraph\Tests\Snapshots;
 
 use Noeka\Svgraph\Chart;
 use Noeka\Svgraph\Charts\AbstractChart;
+use Noeka\Svgraph\Data\Axis;
 use Noeka\Svgraph\Data\Series;
 use Noeka\Svgraph\Theme;
 use PHPUnit\Framework\TestCase;
@@ -157,6 +158,27 @@ final class ChartSnapshotTest extends TestCase
             ->theme(Theme::dark())
             ->axes()
             ->grid()
+            ->render();
+        $this->assertMatchesSnapshot($svg);
+    }
+
+    public function test_line_log_scale(): void
+    {
+        $svg = Chart::line([1, 10, 100, 1_000, 10_000])
+            ->logScale()
+            ->axes()
+            ->grid()
+            ->render();
+        $this->assertMatchesSnapshot($svg);
+    }
+
+    public function test_line_dual_axis(): void
+    {
+        $svg = Chart::line(['Jan' => 12, 'Feb' => 27, 'Mar' => 18])
+            ->addSeries(Series::of('Costs', ['Jan' => 600, 'Feb' => 1_400, 'Mar' => 900])->onAxis(Axis::Right))
+            ->axes()
+            ->grid()
+            ->secondaryAxis()
             ->render();
         $this->assertMatchesSnapshot($svg);
     }

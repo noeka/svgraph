@@ -27,6 +27,7 @@ final readonly class Series implements \Countable
         public array $points,
         public string $name = '',
         public ?string $color = null,
+        public Axis $axis = Axis::Left,
     ) {
         $values = [];
         $min = INF;
@@ -143,12 +144,24 @@ final readonly class Series implements \Countable
 
     public function withName(string $name): self
     {
-        return new self($this->points, $name, $this->color);
+        return new self($this->points, $name, $this->color, $this->axis);
     }
 
     public function withColor(?string $color): self
     {
-        return new self($this->points, $this->name, $color);
+        return new self($this->points, $this->name, $color, $this->axis);
+    }
+
+    /**
+     * Assign this series to the chart's left or right Y axis. Accepts an
+     * `Axis` case or its string equivalent (`'left'`, `'right'`) for
+     * caller convenience. Has no visual effect unless the chart has a
+     * secondary axis enabled (see `LineChart::secondaryAxis()`).
+     */
+    public function onAxis(Axis|string $axis): self
+    {
+        $resolved = $axis instanceof Axis ? $axis : Axis::from($axis);
+        return new self($this->points, $this->name, $this->color, $resolved);
     }
 
     public function count(): int
