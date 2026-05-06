@@ -68,6 +68,7 @@ final readonly class Series implements \Countable
      * - [10, 24, 18]                       → unlabelled points
      * - [['Mon', 10], ['Tue', 24]]         → label + value tuples
      * - ['Mon' => 10, 'Tue' => 24]         → label => value map
+     * - [[DateTimeImmutable, 10], …]       → time-keyed tuples (drives TimeScale)
      * - [Point, Point]                     → already Points
      *
      * Non-finite values (NaN, ±Infinity) are silently dropped — they would
@@ -102,7 +103,9 @@ final readonly class Series implements \Countable
                     continue;
                 }
                 $link = isset($arr[2]) && $arr[2] instanceof Link ? $arr[2] : null;
-                $points[] = new Point($val, self::toLabel($arr[0]), $link);
+                $time = self::toTime($arr[0]);
+                $label = $time instanceof \DateTimeImmutable ? null : self::toLabel($arr[0]);
+                $points[] = new Point($val, $label, $link, $time);
                 continue;
             }
             $val = self::toFloat($value);
@@ -112,6 +115,17 @@ final readonly class Series implements \Countable
             $points[] = new Point($val, is_string($key) ? $key : null);
         }
         return $points;
+    }
+
+    private static function toTime(mixed $v): ?\DateTimeImmutable
+    {
+        if ($v instanceof \DateTimeImmutable) {
+            return $v;
+        }
+        if ($v instanceof \DateTimeInterface) {
+            return \DateTimeImmutable::createFromInterface($v);
+        }
+        return null;
     }
 
     private static function toFloat(mixed $v): float
