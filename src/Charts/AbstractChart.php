@@ -4,8 +4,12 @@ declare(strict_types=1);
 
 namespace Noeka\Svgraph\Charts;
 
+use Noeka\Svgraph\Annotations\Annotation;
+use Noeka\Svgraph\Annotations\AnnotationContext;
+use Noeka\Svgraph\Annotations\AnnotationLayer;
 use Noeka\Svgraph\Data\Link;
 use Noeka\Svgraph\Svg\Tag;
+use Noeka\Svgraph\Svg\Wrapper;
 use Noeka\Svgraph\Theme;
 
 abstract class AbstractChart implements \Stringable
@@ -19,6 +23,9 @@ abstract class AbstractChart implements \Stringable
     protected string $variantClass = 'chart';
 
     protected bool $animated = false;
+
+    /** @var list<Annotation> */
+    protected array $annotations = [];
 
     private static int $nextId = 0;
     private readonly int $instanceId;
@@ -59,6 +66,22 @@ abstract class AbstractChart implements \Stringable
     public function animate(bool $on = true): static
     {
         $this->animated = $on;
+        return $this;
+    }
+
+    /**
+     * Add a chart overlay — reference line, threshold band, target zone, or
+     * callout. Multiple annotations may be added; they are drawn in insertion
+     * order within their z-layer (bands and reference lines below data,
+     * callouts above).
+     *
+     * Annotations are stored on every chart type for API uniformity, but only
+     * charts with a meaningful x/y plot area (line, sparkline, bar) actually
+     * render them. Pie, donut, and progress charts silently ignore them.
+     */
+    public function annotate(Annotation $annotation): static
+    {
+        $this->annotations[] = $annotation;
         return $this;
     }
 
@@ -116,5 +139,39 @@ abstract class AbstractChart implements \Stringable
             $attrs['rel'] = $link->rel;
         }
         return Tag::make('a', $attrs)->append($inner);
+    }
+
+    /**
+     * Push every annotation in `$layer` into the wrapper as raw SVG. Empty
+     * renders (annotations whose anchor falls outside the visible domain)
+     * are skipped silently.
+     */
+    protected function renderAnnotationLayer(
+        Wrapper $wrapper,
+        AnnotationContext $context,
+        AnnotationLayer $layer,
+    ): void {
+        foreach ($this->annotations as $annotation) {
+            if ($annotation->layer() !== $layer) {
+                continue;
+            }
+            $svg = $annotation->render($context);
+            if ($svg !== '') {
+                $wrapper->add($svg);
+            }
+        }
+    }
+
+    /**
+     * Push every annotation's HTML labels into the wrapper. Called once per
+     * render after axis labels so annotation labels paint on top.
+     */
+    protected function emitAnnotationLabels(Wrapper $wrapper, AnnotationContext $context): void
+    {
+        foreach ($this->annotations as $annotation) {
+            foreach ($annotation->labels($context) as $label) {
+                $wrapper->label($label);
+            }
+        }
     }
 }

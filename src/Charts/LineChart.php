@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Noeka\Svgraph\Charts;
 
 use InvalidArgumentException;
+use Noeka\Svgraph\Annotations\AnnotationContext;
+use Noeka\Svgraph\Annotations\AnnotationLayer;
 use Noeka\Svgraph\Data\Axis;
 use Noeka\Svgraph\Data\Series;
 use Noeka\Svgraph\Data\SeriesCollection;
@@ -279,6 +281,15 @@ class LineChart extends AbstractChart
             }
         }
 
+        $annotationContext = new AnnotationContext(
+            viewport: $viewport,
+            theme: $this->theme,
+            xScale: $timeScale ?? $xScale,
+            yScale: $leftYScale,
+            rightYScale: $rightYScale,
+        );
+        $this->renderAnnotationLayer($wrapper, $annotationContext, AnnotationLayer::BehindData);
+
         foreach ($this->seriesCollection->items as $i => $series) {
             $ys = $series->axis === Axis::Right && $rightYScale instanceof Scale ? $rightYScale : $leftYScale;
             $this->renderSeries($wrapper, $series, $i, $xScale, $ys, $viewport, $strokeWidth, $timeScale);
@@ -291,9 +302,13 @@ class LineChart extends AbstractChart
             $wrapper->enableCrosshair($maxLen);
         }
 
+        $this->renderAnnotationLayer($wrapper, $annotationContext, AnnotationLayer::OverData);
+
         if ($this->showAxes) {
             $this->addLabels($wrapper, $xScale, $leftYScale, $rightYScale, $timeScale, $viewport);
         }
+
+        $this->emitAnnotationLabels($wrapper, $annotationContext);
 
         if ($this->showLegend) {
             $wrapper->setLegend($this->buildLegendEntries());

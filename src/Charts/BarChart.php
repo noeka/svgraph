@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Noeka\Svgraph\Charts;
 
+use Noeka\Svgraph\Annotations\AnnotationContext;
+use Noeka\Svgraph\Annotations\AnnotationLayer;
 use Noeka\Svgraph\Data\Link;
 use Noeka\Svgraph\Data\Series;
 use Noeka\Svgraph\Data\SeriesCollection;
@@ -233,11 +235,21 @@ class BarChart extends AbstractChart
             $wrapper->enableAnimation();
         }
 
+        $annotationContext = new AnnotationContext(
+            viewport: $viewport,
+            theme: $this->theme,
+            xScale: Scale::linear(-0.5, $maxLen - 0.5, $viewport->plotLeft(), $viewport->plotRight()),
+            yScale: $yScale,
+        );
+        $this->renderAnnotationLayer($wrapper, $annotationContext, AnnotationLayer::BehindData);
+
         if ($mode === self::MODE_STACKED) {
             $this->renderVerticalStacked($wrapper, $viewport, $yScale, $slotWidth);
         } else {
             $this->renderVerticalGrouped($wrapper, $viewport, $yScale, $slotWidth, $baseY);
         }
+
+        $this->renderAnnotationLayer($wrapper, $annotationContext, AnnotationLayer::OverData);
 
         if ($this->showAxes) {
             $wrapper->add(Tag::void('line', [
@@ -280,6 +292,8 @@ class BarChart extends AbstractChart
                 ));
             }
         }
+
+        $this->emitAnnotationLabels($wrapper, $annotationContext);
 
         if ($this->showLegend) {
             $wrapper->setLegend($this->buildLegendEntries());
@@ -491,11 +505,21 @@ class BarChart extends AbstractChart
             $wrapper->setSecondaryVariant('bar-h');
         }
 
+        $annotationContext = new AnnotationContext(
+            viewport: $viewport,
+            theme: $this->theme,
+            xScale: $xScale,
+            yScale: Scale::linear(-0.5, $maxLen - 0.5, $viewport->plotTop(), $viewport->plotBottom(), invert: true),
+        );
+        $this->renderAnnotationLayer($wrapper, $annotationContext, AnnotationLayer::BehindData);
+
         if ($mode === self::MODE_STACKED) {
             $this->renderHorizontalStacked($wrapper, $viewport, $xScale, $slotHeight);
         } else {
             $this->renderHorizontalGrouped($wrapper, $viewport, $xScale, $slotHeight, $baseX);
         }
+
+        $this->renderAnnotationLayer($wrapper, $annotationContext, AnnotationLayer::OverData);
 
         if ($hasLabels) {
             foreach ($this->seriesCollection->commonLabels() as $i => $label) {
@@ -528,6 +552,8 @@ class BarChart extends AbstractChart
                 ));
             }
         }
+
+        $this->emitAnnotationLabels($wrapper, $annotationContext);
 
         if ($this->showLegend) {
             $wrapper->setLegend($this->buildLegendEntries());
