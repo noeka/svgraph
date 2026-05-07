@@ -125,6 +125,22 @@ In stacked mode, positive and negative values stack independently —
 positives grow up from zero, negatives down — so a series with mixed
 signs renders cleanly.
 
+## Annotations
+
+Reference lines and threshold bands work on bar charts too — useful for
+"average" or "target" markers above a categorical x axis. Attach via
+`->annotate()`:
+
+```php
+use Noeka\Svgraph\Annotations\ReferenceLine;
+
+Chart::bar(['Jan' => 120, 'Feb' => 180, 'Mar' => 90, 'Apr' => 210, 'May' => 165])
+    ->axes()->grid()->rounded(2)->color('#3b82f6')
+    ->annotate(ReferenceLine::y(150)->label('Average')->color('#ef4444'));
+```
+
+See [Annotations](../annotations.md) for the full reference.
+
 ## Color resolution
 
 For a given series, the package picks a color in this order:

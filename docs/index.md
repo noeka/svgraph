@@ -21,6 +21,7 @@ Every chart page lists every option, with examples and rendered output.
 ## Cross-cutting topics
 
 - [Theming](theming.md) — built-in themes, custom palettes, all theme tokens
+- [Annotations](annotations.md) — reference lines, threshold bands, target zones, callouts
 - [Animations](animations.md) — opt-in CSS entrance animations, reduced-motion handling
 - [Accessibility](accessibility.md) — keyboard navigation, native tooltips, link safety
 - [CSS customization](css-customization.md) — `.series-{N}` hooks and `--svgraph-*` custom properties

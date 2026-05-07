@@ -112,6 +112,7 @@ so users who request reduced motion always see a static chart. Details:
 - [Getting started](docs/getting-started.md)
 - [Data formats](docs/data-formats.md) — every input shape (lists, tuples, maps, `Point`/`Series`/`Slice`/`Link`)
 - [Theming](docs/theming.md) — themes, palettes, full token reference
+- [Annotations](docs/annotations.md) — reference lines, threshold bands, target zones, callouts
 - [Animations](docs/animations.md)
 - [Accessibility](docs/accessibility.md)
 - [CSS customization](docs/css-customization.md) — `.series-{N}` hooks, `--svgraph-*` properties
