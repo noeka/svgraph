@@ -42,6 +42,14 @@ final class Wrapper
 
     private int $crosshairColumns = 0;
 
+    private ?string $titleId = null;
+    private ?string $titleText = null;
+    private ?string $descId = null;
+    private ?string $descText = null;
+
+    /** @var array{columns: list<string>, rows: list<list<string>>}|null */
+    private ?array $dataTable = null;
+
     public function __construct(
         private readonly Viewport $viewport,
         private readonly float $aspectRatio,
@@ -121,6 +129,41 @@ final class Wrapper
         return $this;
     }
 
+    /**
+     * Wire accessible labels onto the root SVG.
+     *
+     * The wrapper emits `<title id="$titleId">$title</title>` and
+     * `<desc id="$descId">$description</desc>` as the first children of the
+     * SVG, then sets `role="img"` plus `aria-labelledby` / `aria-describedby`
+     * on the SVG root to reference them. Without a call to this method the
+     * SVG falls back to `aria-hidden="true"` for legacy decorative use.
+     */
+    public function setAccessibility(
+        string $titleId,
+        string $title,
+        string $descId,
+        string $description,
+    ): self {
+        $this->titleId = $titleId;
+        $this->titleText = $title;
+        $this->descId = $descId;
+        $this->descText = $description;
+        return $this;
+    }
+
+    /**
+     * Set a screen-reader-only `<table>` rendered alongside the chart so
+     * assistive tech users can read the underlying data row by row.
+     *
+     * @param list<string>       $columns Column headers (first cell labels rows).
+     * @param list<list<string>> $rows    One row per data point; cell count must match `$columns`.
+     */
+    public function setDataTable(array $columns, array $rows): self
+    {
+        $this->dataTable = ['columns' => $columns, 'rows' => $rows];
+        return $this;
+    }
+
     public function render(): string
     {
         $paddingBottom = (1.0 / max($this->aspectRatio, 0.01)) * 100.0;
@@ -168,14 +211,30 @@ final class Wrapper
 
         $svgStyle = 'position:absolute;inset:0;width:100%;height:100%;display:block;overflow:visible;';
 
-        $svg = Tag::make('svg', [
+        $svgAttrs = [
             'xmlns' => 'http://www.w3.org/2000/svg',
             'viewBox' => $this->viewport->viewBox(),
             'preserveAspectRatio' => 'none',
             'style' => $svgStyle,
-            'aria-hidden' => 'true',
             'focusable' => 'false',
-        ]);
+        ];
+        if ($this->titleId !== null && $this->descId !== null) {
+            $svgAttrs['role'] = 'img';
+            $svgAttrs['aria-labelledby'] = $this->titleId;
+            $svgAttrs['aria-describedby'] = $this->descId;
+        } else {
+            $svgAttrs['aria-hidden'] = 'true';
+        }
+
+        $svg = Tag::make('svg', $svgAttrs);
+        // <title> and <desc> must be the first children so AT picks them up
+        // as the SVG's accessible name and description.
+        if ($this->titleId !== null && $this->titleText !== null) {
+            $svg->append(Tag::make('title', ['id' => $this->titleId])->append($this->titleText));
+        }
+        if ($this->descId !== null && $this->descText !== null) {
+            $svg->append(Tag::make('desc', ['id' => $this->descId])->append($this->descText));
+        }
         foreach ($this->svgChildren as $child) {
             if ($child instanceof Tag) {
                 $svg->append($child);
@@ -189,8 +248,10 @@ final class Wrapper
             'style' => $wrapperStyle,
         ]);
 
-        if ($this->tooltips !== [] || $this->hasSeriesElements || $this->animated || $this->crosshairColumns > 0 || $hasLegend) {
-            $div->appendRaw($this->buildStyle());
+        $hasDataTable = $this->dataTable !== null && $this->dataTable['rows'] !== [];
+
+        if ($this->tooltips !== [] || $this->hasSeriesElements || $this->animated || $this->crosshairColumns > 0 || $hasLegend || $hasDataTable) {
+            $div->appendRaw($this->buildStyle($hasDataTable));
         }
 
         // Hidden checkbox toggles must precede the chart and legend so the
@@ -251,7 +312,49 @@ final class Wrapper
             $div->append($this->buildLegend());
         }
 
+        if ($hasDataTable) {
+            $div->appendRaw($this->buildDataTable());
+        }
+
         return (string) $div;
+    }
+
+    /**
+     * Render the visually-hidden screen-reader data table.
+     *
+     * Hidden via the `.svgraph-sr-only` class (clip + 1px box) so it stays
+     * out of layout and out of sighted view, but remains a fully-formed
+     * `<table>` with `<thead>` and `<tbody>` for assistive tech.
+     */
+    private function buildDataTable(): string
+    {
+        if ($this->dataTable === null) {
+            return '';
+        }
+        $table = Tag::make('table', ['class' => 'svgraph-sr-only']);
+        $thead = Tag::make('thead');
+        $headRow = Tag::make('tr');
+        foreach ($this->dataTable['columns'] as $col) {
+            $headRow->append(Tag::make('th', ['scope' => 'col'])->append($col));
+        }
+        $thead->append($headRow);
+        $table->append($thead);
+
+        $tbody = Tag::make('tbody');
+        foreach ($this->dataTable['rows'] as $row) {
+            $tr = Tag::make('tr');
+            foreach ($row as $i => $cell) {
+                // First cell of each row scopes the row; remaining cells are data.
+                $tag = $i === 0
+                    ? Tag::make('th', ['scope' => 'row'])
+                    : Tag::make('td');
+                $tr->append($tag->append($cell));
+            }
+            $tbody->append($tr);
+        }
+        $table->append($tbody);
+
+        return (string) $table;
     }
 
     private function buildLegend(): Tag
@@ -272,9 +375,14 @@ final class Wrapper
         return $legend;
     }
 
-    private function buildStyle(): string
+    private function buildStyle(bool $hasDataTable): string
     {
         $css = '';
+
+        if ($hasDataTable) {
+            $css .= '.svgraph-sr-only{position:absolute;width:1px;height:1px;padding:0;'
+                . 'margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;}';
+        }
 
         if ($this->hasSeriesElements) {
             $css .= $this->buildHoverStyle();

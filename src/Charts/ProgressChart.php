@@ -123,6 +123,34 @@ final class ProgressChart extends AbstractChart
             ));
         }
 
+        $this->applyAccessibility($wrapper);
+
         return $wrapper->render();
+    }
+
+    #[\Override]
+    protected function defaultDescription(): string
+    {
+        $percent = $this->target > 0.0
+            ? round(max(0.0, min(1.0, $this->value / $this->target)) * 100)
+            : 0.0;
+        return sprintf(
+            'Progress: %s of %s (%s%%).',
+            $this->formatNumber($this->value),
+            $this->formatNumber($this->target),
+            $this->formatNumber($percent),
+        );
+    }
+
+    #[\Override]
+    protected function buildDataTable(): array
+    {
+        return [
+            'columns' => ['Metric', 'Value'],
+            'rows' => [
+                ['Value', $this->formatNumber($this->value)],
+                ['Target', $this->formatNumber($this->target)],
+            ],
+        ];
     }
 }

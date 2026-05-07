@@ -9,7 +9,7 @@ build step.
 - Server-side: charts render to plain SVG strings, ready to echo into a template.
 - Zero JavaScript: hover tooltips, keyboard focus, and animations are pure CSS.
 - Themeable: built-in light/dark themes plus a full set of CSS custom properties.
-- Accessible: native `<title>` tooltips, focusable points, link safety, reduced-motion aware.
+- Accessible: `role="img"` with labelled `<title>`/`<desc>`, screen-reader data table fallback, focusable points, link safety, reduced-motion aware.
 - Tiny: PSR-4, no runtime dependencies.
 
 ## Requirements
