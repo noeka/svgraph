@@ -305,6 +305,24 @@ extents — only the domain (and `LogScale` base) is read from it.
   checked for positivity, so you can mix a log left axis with a right
   axis containing zero or negative values.
 
+## Annotations
+
+Reference lines, threshold bands, target zones, and callouts overlay
+analytical context on top of the plot — goal lines, healthy ranges,
+deployment windows, called-out peaks. Attach via `->annotate()`:
+
+```php
+use Noeka\Svgraph\Annotations\ReferenceLine;
+use Noeka\Svgraph\Annotations\ThresholdBand;
+
+Chart::line($data)
+    ->axes()->grid()->stroke('#3b82f6')
+    ->annotate(ThresholdBand::y(20, 40)->fill('#10b98122')->label('Healthy'))
+    ->annotate(ReferenceLine::y(40)->label('Goal')->color('#ef4444'));
+```
+
+See [Annotations](../annotations.md) for the full reference.
+
 ## Color resolution
 
 For a given series, the package picks a color in this order:
