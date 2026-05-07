@@ -24,6 +24,10 @@ abstract class AbstractChart implements \Stringable
 
     protected bool $animated = false;
 
+    protected ?string $accessibleTitle = null;
+
+    protected ?string $accessibleDescription = null;
+
     /** @var list<Annotation> */
     protected array $annotations = [];
 
@@ -82,6 +86,28 @@ abstract class AbstractChart implements \Stringable
     public function annotate(Annotation $annotation): static
     {
         $this->annotations[] = $annotation;
+        return $this;
+    }
+
+    /**
+     * Set the chart's accessible name (surfaced as `<title>` and read by
+     * screen readers via `aria-labelledby`). When unset, the chart falls
+     * back to a generic "{Variant} chart" label.
+     */
+    public function title(string $text): static
+    {
+        $this->accessibleTitle = $text;
+        return $this;
+    }
+
+    /**
+     * Set the chart's accessible long description (surfaced as `<desc>` and
+     * read by screen readers via `aria-describedby`). When unset, charts
+     * derive a one-line summary from the data.
+     */
+    public function description(string $text): static
+    {
+        $this->accessibleDescription = $text;
         return $this;
     }
 
@@ -173,5 +199,57 @@ abstract class AbstractChart implements \Stringable
                 $wrapper->label($label);
             }
         }
+    }
+
+    /**
+     * Wire the wrapper's accessible labels and screen-reader data table.
+     * Every concrete chart calls this once before invoking `$wrapper->render()`.
+     */
+    protected function applyAccessibility(Wrapper $wrapper): void
+    {
+        $id = $this->chartId();
+        $title = $this->accessibleTitle ?? $this->defaultTitle();
+        $description = $this->accessibleDescription ?? $this->defaultDescription();
+        $wrapper->setAccessibility(
+            $id . '-title',
+            $title,
+            $id . '-desc',
+            $description,
+        );
+
+        $table = $this->buildDataTable();
+        if ($table['rows'] !== []) {
+            $wrapper->setDataTable($table['columns'], $table['rows']);
+        }
+    }
+
+    /**
+     * Default chart title used when the caller hasn't supplied one. Concrete
+     * charts can override for friendlier labels.
+     */
+    protected function defaultTitle(): string
+    {
+        return ucfirst($this->variantClass) . ' chart';
+    }
+
+    /**
+     * Default `<desc>` summary. Charts override to surface the underlying
+     * data shape (point count, value range, etc).
+     */
+    protected function defaultDescription(): string
+    {
+        return $this->defaultTitle() . '.';
+    }
+
+    /**
+     * Data the wrapper renders as a screen-reader-only `<table>`. The first
+     * column header labels rows; remaining columns are values. Empty rows
+     * skip table emission entirely.
+     *
+     * @return array{columns: list<string>, rows: list<list<string>>}
+     */
+    protected function buildDataTable(): array
+    {
+        return ['columns' => [], 'rows' => []];
     }
 }

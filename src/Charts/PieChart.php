@@ -77,6 +77,7 @@ class PieChart extends AbstractChart
         $wrapper->setUserClass($this->cssClass);
 
         if ($this->slices === []) {
+            $this->applyAccessibility($wrapper);
             return $wrapper->render();
         }
 
@@ -85,6 +86,7 @@ class PieChart extends AbstractChart
             $total += max(0.0, $slice->value);
         }
         if ($total <= 0.0) {
+            $this->applyAccessibility($wrapper);
             return $wrapper->render();
         }
 
@@ -107,6 +109,8 @@ class PieChart extends AbstractChart
         } else {
             $this->renderStatic($wrapper, $viewport, $chartId, $cx, $cy, $outerRadius, $innerRadius, $total, $startRad, $padRad, $hasLegend);
         }
+
+        $this->applyAccessibility($wrapper);
 
         return $wrapper->render();
     }
@@ -320,6 +324,48 @@ class PieChart extends AbstractChart
         if ($hasLegend) {
             $this->addLegend($wrapper);
         }
+    }
+
+    #[\Override]
+    protected function defaultTitle(): string
+    {
+        return $this->thickness > 0.0 ? 'Donut chart' : 'Pie chart';
+    }
+
+    #[\Override]
+    protected function defaultDescription(): string
+    {
+        if ($this->slices === []) {
+            return $this->defaultTitle() . ' (no data).';
+        }
+        $total = 0.0;
+        foreach ($this->slices as $slice) {
+            $total += max(0.0, $slice->value);
+        }
+        $count = count($this->slices);
+        return sprintf(
+            '%s with %d %s totalling %s.',
+            $this->defaultTitle(),
+            $count,
+            $count === 1 ? 'slice' : 'slices',
+            $this->formatNumber($total),
+        );
+    }
+
+    #[\Override]
+    protected function buildDataTable(): array
+    {
+        if ($this->slices === []) {
+            return ['columns' => [], 'rows' => []];
+        }
+        $rows = [];
+        foreach ($this->slices as $slice) {
+            $rows[] = [
+                $slice->label !== '' ? $slice->label : 'Slice',
+                $this->formatNumber($slice->value),
+            ];
+        }
+        return ['columns' => ['Slice', 'Value'], 'rows' => $rows];
     }
 
     protected function addLegend(Wrapper $wrapper): void

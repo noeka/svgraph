@@ -18,4 +18,10 @@ final class SparklineChart extends LineChart
         $this->fillEnabled = true;
         $this->fillOpacity = 0.15;
     }
+
+    #[\Override]
+    protected function defaultTitle(): string
+    {
+        return 'Sparkline';
+    }
 }

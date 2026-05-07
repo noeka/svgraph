@@ -3,6 +3,55 @@
 svgraph aims to render charts that work without JavaScript and remain
 usable with assistive technologies, keyboards, and reduced-motion settings.
 
+## Chart-level labelling
+
+Every chart's root `<svg>` carries `role="img"` plus an `aria-labelledby`
+pointing at a `<title>` child and an `aria-describedby` pointing at a
+`<desc>` child. Assistive technologies read these in order, so users hear
+"Line chart, Line chart with 1 series of 4 points. Range: 10 to 35."
+before encountering the data points themselves.
+
+```html
+<svg role="img" aria-labelledby="svgraph-1-title" aria-describedby="svgraph-1-desc" …>
+  <title id="svgraph-1-title">Line chart</title>
+  <desc id="svgraph-1-desc">Line chart with 1 series of 4 points. Range: 10 to 35.</desc>
+  …
+</svg>
+```
+
+Override either string per chart:
+
+```php
+Chart::line($revenue)
+    ->title('Quarterly revenue, 2026')
+    ->description('Revenue (in $k) for Q1–Q3 2026, post-launch.');
+```
+
+When you call neither, svgraph derives a default summary from the data
+(point count, series count, value range — or "no data" for empty inputs).
+
+## Screen-reader data table
+
+Alongside every non-empty chart, svgraph appends a visually-hidden
+`<table class="svgraph-sr-only">` that lists the underlying values with
+`<th scope="col">` headers and `<th scope="row">` row labels. Sighted
+users see the chart; screen-reader and keyboard-table-mode users get a
+fully navigable representation of the same data.
+
+```html
+<table class="svgraph-sr-only">
+  <thead><tr><th scope="col">Label</th><th scope="col">Series 1</th></tr></thead>
+  <tbody>
+    <tr><th scope="row">Mon</th><td>12</td></tr>
+    <tr><th scope="row">Tue</th><td>27</td></tr>
+    …
+  </tbody>
+</table>
+```
+
+The hiding rule (`position:absolute; clip:rect(0,0,0,0)`) keeps the table
+in the accessibility tree without affecting layout.
+
 ## Native tooltips
 
 Every interactive element carries an SVG `<title>` child. Browsers and
@@ -65,17 +114,25 @@ reduced motion. The animation rules are wrapped in
 "reduce motion" in their accessibility preferences see the chart in its
 final state immediately. See [Animations](animations.md) for details.
 
-## Decorative SVG vs interactive content
-
-The wrapper `<svg>` carries `aria-hidden="true"` and `focusable="false"`
-because the meaningful content lives in the interactive elements
-inside. Each interactive element exposes its own accessible name via
-`<title>`.
-
 ## Color contrast
 
 Pie/donut legends, axis labels, and progress text use `theme.textColor`.
 The default theme's `#374151` clears WCAG AA contrast against white;
 the dark theme's `#e5e7eb` clears AA against `#0f172a`. If you build a
 custom theme, verify your `textColor` against the surface you embed
-the chart on.
+the chart on:
+
+| Token              | Default theme | Dark theme | WCAG AA target              |
+|--------------------|---------------|------------|-----------------------------|
+| `textColor`        | `#374151`     | `#e5e7eb`  | 4.5:1 against background    |
+| `axisColor`        | `#9ca3af`     | `#6b7280`  | 3:1 against background      |
+| `gridColor`        | `#e5e7eb`     | `#374151`  | decorative — no minimum     |
+| `tooltipBackground`| `#1f2937`     | `#111827`  | 4.5:1 with `tooltipTextColor` |
+| `tooltipTextColor` | `#f9fafb`     | `#f3f4f6`  | 4.5:1 with `tooltipBackground` |
+
+Run any custom palette through a contrast checker (e.g.
+[WebAIM](https://webaim.org/resources/contrastchecker/)) before
+shipping. The series colors themselves only need to be distinguishable
+from each other and from the background — they are not text — but
+keeping a 3:1 ratio against the page background helps low-vision users
+trace each line or bar.

@@ -585,8 +585,11 @@ final class ChartRenderingTest extends TestCase
     {
         $svg = Chart::line([10, 20, 30])->render();
 
-        // No series elements → no <style> block at all.
-        self::assertStringNotContainsString('<style>', $svg);
+        // No series elements → no hover/focus rules in the <style> block.
+        // (The block itself still exists to carry the sr-only data table CSS.)
+        self::assertStringNotContainsString('hover-brightness', $svg);
+        self::assertStringNotContainsString(':hover', $svg);
+        self::assertStringNotContainsString(':focus-visible', $svg);
     }
 
     public function test_horizontal_bar_rects_have_series_class(): void

@@ -60,7 +60,9 @@ final class ChartConfigurationTest extends TestCase
     {
         $a = (new LineChart())->series([5, 10, 15])->render();
         $b = (new LineChart())->data([5, 10, 15])->render();
-        self::assertSame($a, $b);
+        // Each instance gets a unique chart ID, so normalise it before comparing.
+        $stripId = static fn(string $svg): string => preg_replace('/svgraph-\d+/', 'svgraph-N', $svg) ?? '';
+        self::assertSame($stripId($a), $stripId($b));
     }
 
     public function test_line_constant_values_still_render_path(): void

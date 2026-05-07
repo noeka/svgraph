@@ -314,6 +314,8 @@ class LineChart extends AbstractChart
             $wrapper->setLegend($this->buildLegendEntries());
         }
 
+        $this->applyAccessibility($wrapper);
+
         return $wrapper->render();
     }
 
@@ -841,6 +843,59 @@ class LineChart extends AbstractChart
         $viewport = new Viewport();
         $wrapper = new Wrapper($viewport, $this->aspectRatio, $this->variantClass, $this->theme);
         $wrapper->setUserClass($this->cssClass);
+        $this->applyAccessibility($wrapper);
         return $wrapper->render();
+    }
+
+    #[\Override]
+    protected function defaultDescription(): string
+    {
+        if ($this->seriesCollection->isEmpty()) {
+            return $this->defaultTitle() . ' (no data).';
+        }
+        $count = $this->seriesCollection->count();
+        $points = $this->seriesCollection->maxLength();
+        $min = $this->formatNumber($this->seriesCollection->valueMin());
+        $max = $this->formatNumber($this->seriesCollection->valueMax());
+        return sprintf(
+            '%s with %d series of %d %s. Range: %s to %s.',
+            $this->defaultTitle(),
+            $count,
+            $points,
+            $points === 1 ? 'point' : 'points',
+            $min,
+            $max,
+        );
+    }
+
+    #[\Override]
+    protected function buildDataTable(): array
+    {
+        if ($this->seriesCollection->isEmpty()) {
+            return ['columns' => [], 'rows' => []];
+        }
+
+        $columns = ['Label'];
+        foreach ($this->seriesCollection->items as $i => $series) {
+            $columns[] = $series->name !== '' ? $series->name : 'Series ' . ($i + 1);
+        }
+
+        $labels = $this->seriesCollection->commonLabels();
+        $maxLen = $this->seriesCollection->maxLength();
+        $rows = [];
+        for ($i = 0; $i < $maxLen; $i++) {
+            $rowLabel = $labels[$i] ?? null;
+            if ($rowLabel === null || $rowLabel === '') {
+                $rowLabel = (string) ($i + 1);
+            }
+            $row = [$rowLabel];
+            foreach ($this->seriesCollection->items as $series) {
+                $row[] = isset($series->values[$i])
+                    ? $this->formatNumber($series->values[$i])
+                    : '';
+            }
+            $rows[] = $row;
+        }
+        return ['columns' => $columns, 'rows' => $rows];
     }
 }
