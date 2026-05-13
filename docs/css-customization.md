@@ -89,6 +89,27 @@ darken the dash or swap to a solid line:
 }
 ```
 
+## Error bars and confidence bands
+
+`Series::withErrorBars()` and `Series::withConfidenceBand()` emit one
+extra path per series, sharing the `series-{N}` class so legend toggles
+hide them alongside the data:
+
+- `<path class="svgraph-errorbars series-{N}">` — I-bars drawn as a
+  single concatenated path per series (one M…L segment per point + two
+  caps).
+- `<path class="svgraph-band series-{N}">` — the filled polygon between
+  the polyline of lows and the polyline of highs.
+
+Like the trend overlay, both class names come first so the
+`path[class^="series-"]` hover rule doesn't fire on them. Restyle from
+your own CSS when you want a different look:
+
+```css
+.svgraph-errorbars { stroke-width: 1.5; }
+.svgraph-band      { fill-opacity: 0.3; }
+```
+
 ## Line-chart crosshair
 
 When `->crosshair()` is enabled on a line chart, the markup gains:

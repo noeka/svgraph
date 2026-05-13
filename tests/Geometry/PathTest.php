@@ -126,4 +126,50 @@ final class PathTest extends TestCase
         self::assertEqualsWithDelta(40.0, $x, 1e-10);
         self::assertEqualsWithDelta(50.0, $y, 1e-10);
     }
+
+    public function test_band_empty_returns_empty_string(): void
+    {
+        self::assertSame('', Path::band([], []));
+        self::assertSame('', Path::band([[0.0, 0.0]], []));
+    }
+
+    public function test_band_joins_forward_lows_with_reversed_highs(): void
+    {
+        $lows = [[0.0, 80.0], [50.0, 70.0], [100.0, 60.0]];
+        $highs = [[0.0, 20.0], [50.0, 30.0], [100.0, 40.0]];
+        $d = Path::band($lows, $highs);
+
+        // Forward lows.
+        self::assertStringStartsWith('M0,80 L50,70 L100,60', $d);
+        // Reversed highs joined with L (not a fresh M sub-path).
+        self::assertStringContainsString('L100,40 L50,30 L0,20', $d);
+        self::assertStringEndsWith(' Z', $d);
+    }
+
+    public function test_band_smooth_uses_cubic_bezier(): void
+    {
+        $lows = [[0.0, 80.0], [50.0, 70.0], [100.0, 60.0]];
+        $highs = [[0.0, 20.0], [50.0, 30.0], [100.0, 40.0]];
+        $d = Path::band($lows, $highs, smooth: true);
+
+        self::assertStringContainsString('C', $d);
+        self::assertStringEndsWith(' Z', $d);
+    }
+
+    public function test_error_bars_empty_returns_empty_string(): void
+    {
+        self::assertSame('', Path::errorBars([], 1.0));
+    }
+
+    public function test_error_bars_emits_vertical_and_two_caps_per_bar(): void
+    {
+        $d = Path::errorBars([[50.0, 80.0, 20.0]], 2.0);
+
+        // Vertical stroke at x=50, y from 80 to 20.
+        self::assertStringContainsString('M50,80 L50,20', $d);
+        // Lower cap at y=80, from x=48 to x=52.
+        self::assertStringContainsString('M48,80 L52,80', $d);
+        // Upper cap at y=20, from x=48 to x=52.
+        self::assertStringContainsString('M48,20 L52,20', $d);
+    }
 }

@@ -33,6 +33,14 @@ helpers all delegate to `Series::from()`, which accepts:
     [new DateTimeImmutable('2026-01-01'), 10],
     [new DateTimeImmutable('2026-02-01'), 24],
 ]
+
+// 7. Tuples of [label, value, low, high] — attaches an uncertainty range
+//    to each point. Surfaces as I-bars or a confidence band when the
+//    series opts in with `withErrorBars()` / `withConfidenceBand()`.
+[['Mon', 10, 8, 12], ['Tue', 24, 20, 28]]
+
+// 8. Tuples of [label, value, Link, low, high] — links + range combined.
+[['Mon', 10, new Link('/days/mon'), 8, 12]]
 ```
 
 Non-finite values (`NAN`, `±INF`) are silently dropped — they would
@@ -113,9 +121,19 @@ use Noeka\Svgraph\Data\{Point, Series, Slice, Link};
 
 new Point(value: 42.0, label: 'Mon', link: new Link('/days/mon'));
 new Point(value: 42.0, time: new DateTimeImmutable('2026-01-15'));
+new Point(value: 42.0, label: 'Mon', low: 38.0, high: 46.0); // confidence range
 new Series(points: [new Point(10, 'Mon'), new Point(20, 'Tue')], name: 'Sales', color: '#3b82f6');
 new Slice(label: 'Stripe', value: 1240, color: '#10b981', link: new Link('/stripe'));
 ```
+
+### Point ranges
+
+Both `low` and `high` are optional — setting one without the other has no
+effect. The chart's Y axis automatically extends to include the range,
+and `low` / `high` are surfaced in tooltips and the screen-reader
+[data table](accessibility.md) regardless of whether an overlay is
+rendered. See [Line chart › Error bars / confidence bands](charts/line.md#error-bars--confidence-bands)
+for opting into the visual overlay.
 
 ### `Link` safety
 

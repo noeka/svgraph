@@ -32,6 +32,14 @@ final readonly class Theme
      *
      * @param string $animationDuration `--svgraph-anim-dur`  CSS `<time>` for the animation (e.g. "0.6s"). Default "0.6s".
      * @param string $animationEasing   `--svgraph-anim-ease` CSS easing function (e.g. "ease-out"). Default "ease-out".
+     *
+     * Error-overlay tokens — used by `Series::withErrorBars()` /
+     * `Series::withConfidenceBand()` on line charts. These are not CSS
+     * custom properties; they're written directly onto SVG attributes:
+     *
+     * @param float $errorBarStrokeWidth Stroke width (viewBox units) of the I-bar line and caps.
+     * @param float $errorBarCap         Half-width (viewBox units) of the horizontal cap on each I-bar.
+     * @param float $confidenceBandOpacity Fill opacity (0–1) of the shaded band between low and high polylines.
      */
     public function __construct(
         public array $palette,
@@ -52,6 +60,9 @@ final readonly class Theme
         public string $piePopDistance = '3px',
         public string $animationDuration = '0.6s',
         public string $animationEasing = 'ease-out',
+        public float $errorBarStrokeWidth = 1.0,
+        public float $errorBarCap = 1.6,
+        public float $confidenceBandOpacity = 0.18,
     ) {}
 
     public static function default(): self
@@ -109,6 +120,9 @@ final readonly class Theme
             piePopDistance: $this->piePopDistance,
             animationDuration: $this->animationDuration,
             animationEasing: $this->animationEasing,
+            errorBarStrokeWidth: $this->errorBarStrokeWidth,
+            errorBarCap: $this->errorBarCap,
+            confidenceBandOpacity: $this->confidenceBandOpacity,
         );
     }
 
@@ -143,6 +157,9 @@ final readonly class Theme
             piePopDistance: $this->piePopDistance,
             animationDuration: $this->animationDuration,
             animationEasing: $this->animationEasing,
+            errorBarStrokeWidth: $this->errorBarStrokeWidth,
+            errorBarCap: $this->errorBarCap,
+            confidenceBandOpacity: $this->confidenceBandOpacity,
         );
     }
 
@@ -177,6 +194,9 @@ final readonly class Theme
             piePopDistance: $piePopDistance ?? $this->piePopDistance,
             animationDuration: $this->animationDuration,
             animationEasing: $this->animationEasing,
+            errorBarStrokeWidth: $this->errorBarStrokeWidth,
+            errorBarCap: $this->errorBarCap,
+            confidenceBandOpacity: $this->confidenceBandOpacity,
         );
     }
 
@@ -208,6 +228,46 @@ final readonly class Theme
             piePopDistance: $this->piePopDistance,
             animationDuration: $duration,
             animationEasing: $easing,
+            errorBarStrokeWidth: $this->errorBarStrokeWidth,
+            errorBarCap: $this->errorBarCap,
+            confidenceBandOpacity: $this->confidenceBandOpacity,
+        );
+    }
+
+    /**
+     * Return a copy with different error-overlay styling. Any null argument
+     * keeps the current theme's value.
+     *
+     * `$strokeWidth` and `$cap` are in viewBox units (the chart's logical
+     * 100×100 box); `$bandOpacity` is a 0–1 fill opacity.
+     */
+    public function withErrorOverlay(
+        ?float $strokeWidth = null,
+        ?float $cap = null,
+        ?float $bandOpacity = null,
+    ): self {
+        return new self(
+            palette: $this->palette,
+            stroke: $this->stroke,
+            strokeWidth: $this->strokeWidth,
+            fill: $this->fill,
+            textColor: $this->textColor,
+            fontFamily: $this->fontFamily,
+            fontSize: $this->fontSize,
+            gridColor: $this->gridColor,
+            axisColor: $this->axisColor,
+            trackColor: $this->trackColor,
+            tooltipBackground: $this->tooltipBackground,
+            tooltipTextColor: $this->tooltipTextColor,
+            tooltipBorderRadius: $this->tooltipBorderRadius,
+            hoverBrightness: $this->hoverBrightness,
+            hoverStrokeWidth: $this->hoverStrokeWidth,
+            piePopDistance: $this->piePopDistance,
+            animationDuration: $this->animationDuration,
+            animationEasing: $this->animationEasing,
+            errorBarStrokeWidth: $strokeWidth ?? $this->errorBarStrokeWidth,
+            errorBarCap: $cap ?? $this->errorBarCap,
+            confidenceBandOpacity: $bandOpacity ?? $this->confidenceBandOpacity,
         );
     }
 

@@ -8,6 +8,7 @@ use InvalidArgumentException;
 use Noeka\Svgraph\Annotations\AnnotationContext;
 use Noeka\Svgraph\Annotations\AnnotationLayer;
 use Noeka\Svgraph\Data\Axis;
+use Noeka\Svgraph\Data\ErrorDisplay;
 use Noeka\Svgraph\Data\Series;
 use Noeka\Svgraph\Data\SeriesCollection;
 use Noeka\Svgraph\Geometry\LogScale;
@@ -384,11 +385,14 @@ class LineChart extends AbstractChart
                 continue;
             }
             $sawAny = true;
-            if ($series->min < $min) {
-                $min = $series->min;
+            // `boundsMin`/`boundsMax` extend `min`/`max` to include any
+            // `Point::$low`/`$high` so the axis fits an error overlay even
+            // when the user hasn't toggled `withErrorBars()` yet.
+            if ($series->boundsMin < $min) {
+                $min = $series->boundsMin;
             }
-            if ($series->max > $max) {
-                $max = $series->max;
+            if ($series->boundsMax > $max) {
+                $max = $series->boundsMax;
             }
         }
         if (!$sawAny) {
@@ -515,6 +519,11 @@ class LineChart extends AbstractChart
             ]));
         }
 
+        // Confidence band sits under the line so the data stroke reads on top.
+        if ($series->errorDisplay === ErrorDisplay::Band) {
+            $this->renderConfidenceBand($wrapper, $series, $index, $points, $color, $yScale);
+        }
+
         $lineD = $this->smooth ? Path::smoothLine($points) : Path::line($points);
         $lineAttrs = [
             'class' => "series-{$index}",
@@ -534,9 +543,142 @@ class LineChart extends AbstractChart
         }
         $wrapper->add(Tag::void('path', $lineAttrs));
 
+        // I-bars sit above the line so the caps are visible against the stroke.
+        if ($series->errorDisplay === ErrorDisplay::Bars) {
+            $this->renderErrorBars($wrapper, $series, $index, $points, $color, $yScale);
+        }
+
         if ($this->showPoints || $this->showCrosshair) {
             $this->renderMarkers($wrapper, $series, $index, $points, $color, $strokeWidth, $viewport);
         }
+    }
+
+    /**
+     * Filled band between the polyline of `$series->points[i]->low` values
+     * and the polyline of corresponding `high` values. Points that lack a
+     * range break the polyline so the band only spans contiguous range data.
+     *
+     * @param list<array{0: float, 1: float}> $points  Value-polyline points in series order (used for x coords).
+     */
+    private function renderConfidenceBand(
+        Wrapper $wrapper,
+        Series $series,
+        int $index,
+        array $points,
+        string $color,
+        Scale $yScale,
+    ): void {
+        if (!$series->hasRangeData()) {
+            return;
+        }
+        $segments = $this->collectRangeSegments($series, $points, $yScale);
+        if ($segments === []) {
+            return;
+        }
+
+        $d = '';
+        foreach ($segments as $segment) {
+            $piece = Path::band($segment['low'], $segment['high'], $this->smooth);
+            if ($piece === '') {
+                continue;
+            }
+            $d .= ($d === '' ? '' : ' ') . $piece;
+        }
+        if ($d === '') {
+            return;
+        }
+
+        $wrapper->add(Tag::void('path', [
+            'class' => "svgraph-band series-{$index}",
+            'd' => $d,
+            'fill' => $color,
+            'fill-opacity' => Tag::formatFloat($this->theme->confidenceBandOpacity),
+            'stroke' => 'none',
+        ]));
+    }
+
+    /**
+     * I-bar overlay: one vertical stroke per ranged point plus horizontal
+     * caps at low and high. Bars sharing a series collapse to a single
+     * `<path>` so a dense chart doesn't multiply DOM nodes.
+     *
+     * @param list<array{0: float, 1: float}> $points  Value-polyline points; supplies the x coordinate for each bar.
+     */
+    private function renderErrorBars(
+        Wrapper $wrapper,
+        Series $series,
+        int $index,
+        array $points,
+        string $color,
+        Scale $yScale,
+    ): void {
+        if (!$series->hasRangeData()) {
+            return;
+        }
+        $bars = [];
+        foreach ($series->points as $i => $point) {
+            if (!$point->hasRange()) {
+                continue;
+            }
+            if (!isset($points[$i])) {
+                continue;
+            }
+            $x = $points[$i][0];
+            $bars[] = [
+                $x,
+                $yScale->map((float) $point->rangeMin()),
+                $yScale->map((float) $point->rangeMax()),
+            ];
+        }
+        if ($bars === []) {
+            return;
+        }
+        $halfCap = max(0.0, $this->theme->errorBarCap) / max(0.01, $this->aspectRatio);
+        $d = Path::errorBars($bars, $halfCap);
+        if ($d === '') {
+            return;
+        }
+
+        $wrapper->add(Tag::void('path', [
+            'class' => "svgraph-errorbars series-{$index}",
+            'd' => $d,
+            'fill' => 'none',
+            'stroke' => $color,
+            'stroke-width' => Tag::formatFloat($this->theme->errorBarStrokeWidth),
+            'stroke-linecap' => 'round',
+            'vector-effect' => 'non-scaling-stroke',
+        ]));
+    }
+
+    /**
+     * Group consecutive ranged points into contiguous (low, high) polylines
+     * so the band path breaks across gaps where `Point::$low`/`$high` aren't set.
+     *
+     * @param list<array{0: float, 1: float}> $points
+     * @return list<array{low: list<array{0: float, 1: float}>, high: list<array{0: float, 1: float}>}>
+     */
+    private function collectRangeSegments(Series $series, array $points, Scale $yScale): array
+    {
+        $segments = [];
+        $low = [];
+        $high = [];
+        foreach ($series->points as $i => $point) {
+            if (!$point->hasRange() || !isset($points[$i])) {
+                if (count($low) >= 2) {
+                    $segments[] = ['low' => $low, 'high' => $high];
+                }
+                $low = [];
+                $high = [];
+                continue;
+            }
+            $x = $points[$i][0];
+            $low[] = [$x, $yScale->map((float) $point->rangeMin())];
+            $high[] = [$x, $yScale->map((float) $point->rangeMax())];
+        }
+        if (count($low) >= 2) {
+            $segments[] = ['low' => $low, 'high' => $high];
+        }
+        return $segments;
     }
 
     /**
@@ -567,6 +709,10 @@ class LineChart extends AbstractChart
             $p = $series->points[$i];
             $id = "{$chartId}-s{$index}-pt-{$i}";
             $tipText = $this->tooltip($this->labelFor($series, $p->label), $p->value);
+            if ($p->hasRange()) {
+                $tipText .= ' (' . $this->formatNumber((float) $p->rangeMin())
+                    . '–' . $this->formatNumber((float) $p->rangeMax()) . ')';
+            }
             $hasLink = $p->link !== null;
             // Wrap visual marker + transparent hit target in a <g> so that
             // CSS :hover/:focus-within on the group can highlight the visual
@@ -970,9 +1116,17 @@ class LineChart extends AbstractChart
             }
             $row = [$rowLabel];
             foreach ($this->seriesCollection->items as $series) {
-                $row[] = isset($series->values[$i])
-                    ? $this->formatNumber($series->values[$i])
-                    : '';
+                if (!isset($series->values[$i])) {
+                    $row[] = '';
+                    continue;
+                }
+                $cell = $this->formatNumber($series->values[$i]);
+                $point = $series->points[$i] ?? null;
+                if ($point !== null && $point->hasRange()) {
+                    $cell .= ' (' . $this->formatNumber((float) $point->rangeMin())
+                        . '–' . $this->formatNumber((float) $point->rangeMax()) . ')';
+                }
+                $row[] = $cell;
             }
             $rows[] = $row;
         }

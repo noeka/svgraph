@@ -182,4 +182,40 @@ final class ChartSnapshotTest extends TestCase
             ->render();
         $this->assertMatchesSnapshot($svg);
     }
+
+    public function test_line_error_bars(): void
+    {
+        $svg = Chart::line()
+            ->addSeries(
+                Series::of('Sample', [
+                    ['Mon', 12, 9, 15],
+                    ['Tue', 27, 22, 32],
+                    ['Wed', 18, 14, 22],
+                    ['Thu', 33, 28, 38],
+                ])->withErrorBars(),
+            )
+            ->axes()
+            ->grid()
+            ->points()
+            ->render();
+        $this->assertMatchesSnapshot($svg);
+    }
+
+    public function test_line_confidence_band(): void
+    {
+        $svg = Chart::line()
+            ->addSeries(
+                Series::of('Forecast', [
+                    ['Mon', 12, 9, 15],
+                    ['Tue', 19, 14, 24],
+                    ['Wed', 26, 20, 32],
+                    ['Thu', 33, 25, 41],
+                ])->withConfidenceBand(),
+            )
+            ->axes()
+            ->grid()
+            ->smooth()
+            ->render();
+        $this->assertMatchesSnapshot($svg);
+    }
 }

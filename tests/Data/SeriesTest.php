@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Noeka\Svgraph\Tests\Data;
 
+use Noeka\Svgraph\Data\Link;
 use Noeka\Svgraph\Data\Point;
 use Noeka\Svgraph\Data\Series;
 use PHPUnit\Framework\TestCase;
@@ -130,5 +131,62 @@ final class SeriesTest extends TestCase
         $series = Series::from([[2024, 10], [2025, 20]]);
         self::assertSame([10.0, 20.0], $series->values());
         self::assertSame(['2024', '2025'], $series->labels());
+    }
+
+    public function test_from_label_value_low_high_tuple(): void
+    {
+        $series = Series::from([['Mon', 10, 5, 15], ['Tue', 20, 16, 24]]);
+
+        self::assertSame([10.0, 20.0], $series->values());
+        self::assertSame(5.0, $series->points[0]->low);
+        self::assertSame(15.0, $series->points[0]->high);
+        self::assertSame(16.0, $series->points[1]->low);
+        self::assertSame(24.0, $series->points[1]->high);
+    }
+
+    public function test_from_drops_non_finite_range_bounds(): void
+    {
+        // Non-finite low/high silently drops the range (both go null) so the
+        // point still plots — just without an error overlay.
+        $series = Series::from([['A', 10, NAN, 15], ['B', 20, 5, INF]]);
+
+        self::assertNull($series->points[0]->low);
+        self::assertNull($series->points[0]->high);
+        self::assertNull($series->points[1]->low);
+        self::assertNull($series->points[1]->high);
+    }
+
+    public function test_from_label_value_link_low_high_tuple(): void
+    {
+        $link = new Link('/x');
+        $series = Series::from([['A', 10, $link, 5, 15]]);
+
+        self::assertSame($link, $series->points[0]->link);
+        self::assertSame(5.0, $series->points[0]->low);
+        self::assertSame(15.0, $series->points[0]->high);
+    }
+
+    public function test_bounds_extend_to_include_range(): void
+    {
+        // boundsMin/boundsMax always include any range data so the chart's
+        // axis fits an error overlay even when the user hasn't toggled it.
+        $series = Series::from([['A', 10, 2, 18], ['B', 12, 4, 25]]);
+        self::assertSame(10.0, $series->min());
+        self::assertSame(12.0, $series->max());
+        self::assertSame(2.0, $series->boundsMin);
+        self::assertSame(25.0, $series->boundsMax);
+    }
+
+    public function test_bounds_equal_min_max_without_range_data(): void
+    {
+        $series = Series::from([10, 20, 30]);
+        self::assertSame($series->min(), $series->boundsMin);
+        self::assertSame($series->max(), $series->boundsMax);
+    }
+
+    public function test_has_range_data_reports_presence_of_low_high(): void
+    {
+        self::assertFalse(Series::from([1, 2, 3])->hasRangeData());
+        self::assertTrue(Series::from([['A', 10, 5, 15]])->hasRangeData());
     }
 }

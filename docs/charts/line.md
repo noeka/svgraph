@@ -371,6 +371,102 @@ directly with an array of `[x, y]` tuples.
 - The overlay is **not** focusable or part of the tab order; the trend
   is decorative context, not a separate data series.
 
+## Error bars / confidence bands
+
+Attach an uncertainty range to each point via `Point::$low` and
+`Point::$high` (or the `[label, value, low, high]` tuple shape) and pick
+a presentation per series. `withErrorBars()` draws an I-bar — vertical
+line with horizontal end caps — at every ranged point. `withConfidenceBand()`
+draws a continuous shaded band between the polyline of lows and the
+polyline of highs.
+
+```php
+use Noeka\Svgraph\Chart;
+use Noeka\Svgraph\Data\Series;
+
+Chart::line()
+    ->addSeries(
+        Series::of('Measurement', [
+            ['W1', 12,  9, 15], ['W2', 18, 14, 22], ['W3', 24, 19, 29],
+            ['W4', 22, 18, 26], ['W5', 30, 25, 35], ['W6', 27, 22, 32],
+            ['W7', 35, 29, 41],
+        ], '#3b82f6')->withErrorBars(),
+    )
+    ->axes()->grid()->points();
+```
+
+![Line chart with I-bar error bars](../images/line-error-bars.svg)
+
+```php
+Chart::line()
+    ->addSeries(
+        Series::of('Forecast', [
+            ['Jan', 12, 10, 14], ['Feb', 19, 15, 23], ['Mar', 26, 20, 32],
+            ['Apr', 33, 25, 41], ['May', 41, 30, 52], ['Jun', 48, 34, 62],
+            ['Jul', 56, 38, 74],
+        ], '#8b5cf6')->withConfidenceBand(),
+    )
+    ->axes()->grid()->smooth()->points();
+```
+
+![Line chart with confidence band](../images/line-confidence-band.svg)
+
+The two modes are mutually exclusive — the last call wins — and both
+take effect per series, so a multi-series chart can pick a different
+presentation for each.
+
+### Accessibility
+
+Range data flows through every surface a screen reader or keyboard user
+touches, whether the visual overlay is rendered or not:
+
+- **`<title>` on each marker** is extended with the range, e.g.
+  `Sample — Mon: 12 (9–15)`. Screen readers read this when the
+  user focuses or hovers the point.
+- **Tooltip text** mirrors the title, so sighted hover users see the
+  same range.
+- **Screen-reader data table** appends the range to the value cell —
+  `<td>12 (9–15)</td>` — so users navigating the table hear both the
+  value and its uncertainty.
+- **Y-axis domain** auto-extends to include `low`/`high` regardless of
+  display mode, so a sighted user reading the axis can still place the
+  range numerically.
+
+### Styling
+
+Three theme tokens control the overlay; all flow through `Theme::withErrorOverlay()`:
+
+| Token | Default | Description |
+|-------|---------|-------------|
+| `errorBarStrokeWidth` | `1.0` | Stroke width (viewBox units) of the I-bar's vertical line and caps. |
+| `errorBarCap` | `1.6` | Half-width of the horizontal cap on each I-bar, in viewBox units. |
+| `confidenceBandOpacity` | `0.18` | Fill opacity (0–1) of the band between low and high polylines. |
+
+```php
+use Noeka\Svgraph\Theme;
+
+$theme = Theme::default()->withErrorOverlay(strokeWidth: 1.5, cap: 2.5, bandOpacity: 0.25);
+```
+
+### Notes and limits
+
+- Points without a range (no `low`/`high`) are silently skipped — a
+  mixed series renders bars only where the data carries them.
+- A confidence band needs at least two contiguous ranged points to
+  form a polyline; a single ranged point doesn't render.
+- Bars and bands compose with `smooth()`, `timeAxis()`, `logScale()`
+  and `secondaryAxis()`. Log axes still require strictly-positive
+  `low`/`high` values — the existing validation includes them.
+- Like the [trend overlay](#trend-line-linear-regression), bars and
+  bands carry the series class so [legend toggles](#multi-series) hide
+  them along with the data. The CSS `path[class^="series-"]` hover
+  rule does **not** match these overlay paths (their class starts
+  with `svgraph-errorbars` / `svgraph-band`), so hover styling stays
+  on the data line.
+- Out of scope: asymmetric two-tier intervals (e.g. 50% + 95%) and
+  statistical computation of intervals from raw observations. The
+  caller supplies a single `low`/`high` pair per point.
+
 ## Annotations
 
 Reference lines, threshold bands, target zones, and callouts overlay
