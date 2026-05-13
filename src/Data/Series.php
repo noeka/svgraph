@@ -23,6 +23,15 @@ final readonly class Series implements \Countable
     public float $sum;
 
     /**
+     * Combined data bounds — extends `min`/`max` to include `Point::$low` and
+     * `Point::$high` so the chart's Y axis fits any error overlay even when
+     * the user hasn't toggled `withErrorBars()` / `withConfidenceBand()`.
+     * Equal to `min`/`max` when no point carries a range.
+     */
+    public float $boundsMin;
+    public float $boundsMax;
+
+    /**
      * @param list<Point> $points
      */
     public function __construct(
@@ -31,10 +40,13 @@ final readonly class Series implements \Countable
         public ?string $color = null,
         public Axis $axis = Axis::Left,
         public bool $showTrend = false,
+        public ErrorDisplay $errorDisplay = ErrorDisplay::None,
     ) {
         $values = [];
         $min = INF;
         $max = -INF;
+        $boundsMin = INF;
+        $boundsMax = -INF;
         $sum = 0.0;
         foreach ($this->points as $p) {
             $v = $p->value;
@@ -45,11 +57,27 @@ final readonly class Series implements \Countable
             if ($v > $max) {
                 $max = $v;
             }
+            if ($v < $boundsMin) {
+                $boundsMin = $v;
+            }
+            if ($v > $boundsMax) {
+                $boundsMax = $v;
+            }
+            $rangeMin = $p->rangeMin();
+            $rangeMax = $p->rangeMax();
+            if ($rangeMin !== null && $rangeMin < $boundsMin) {
+                $boundsMin = $rangeMin;
+            }
+            if ($rangeMax !== null && $rangeMax > $boundsMax) {
+                $boundsMax = $rangeMax;
+            }
             $sum += $v;
         }
         $this->values = $values;
         $this->min = $values === [] ? 0.0 : $min;
         $this->max = $values === [] ? 0.0 : $max;
+        $this->boundsMin = $values === [] ? 0.0 : $boundsMin;
+        $this->boundsMax = $values === [] ? 0.0 : $boundsMax;
         $this->sum = $sum;
     }
 
@@ -107,9 +135,16 @@ final readonly class Series implements \Countable
                     continue;
                 }
                 $link = isset($arr[2]) && $arr[2] instanceof Link ? $arr[2] : null;
+                $rangeStart = $link instanceof Link ? 3 : 2;
+                $low = self::toRangeFloat($arr[$rangeStart] ?? null);
+                $high = self::toRangeFloat($arr[$rangeStart + 1] ?? null);
+                if ($low === null || $high === null) {
+                    $low = null;
+                    $high = null;
+                }
                 $time = self::toTime($arr[0]);
                 $label = $time instanceof \DateTimeImmutable ? null : self::toLabel($arr[0]);
-                $points[] = new Point($val, $label, $link, $time);
+                $points[] = new Point($val, $label, $link, $time, $low, $high);
                 continue;
             }
             $val = self::toFloat($value);
@@ -137,6 +172,20 @@ final readonly class Series implements \Countable
         return is_numeric($v) ? (float) $v : NAN;
     }
 
+    /**
+     * Tolerant float coercion for optional range slots: returns null for
+     * missing or non-finite values rather than NAN, so range slots can be
+     * absent without aborting tuple parsing.
+     */
+    private static function toRangeFloat(mixed $v): ?float
+    {
+        if ($v === null || !is_numeric($v)) {
+            return null;
+        }
+        $f = (float) $v;
+        return is_finite($f) ? $f : null;
+    }
+
     private static function toLabel(mixed $v): ?string
     {
         if ($v === null) {
@@ -147,12 +196,12 @@ final readonly class Series implements \Countable
 
     public function withName(string $name): self
     {
-        return new self($this->points, $name, $this->color, $this->axis, $this->showTrend);
+        return new self($this->points, $name, $this->color, $this->axis, $this->showTrend, $this->errorDisplay);
     }
 
     public function withColor(?string $color): self
     {
-        return new self($this->points, $this->name, $color, $this->axis, $this->showTrend);
+        return new self($this->points, $this->name, $color, $this->axis, $this->showTrend, $this->errorDisplay);
     }
 
     /**
@@ -164,7 +213,7 @@ final readonly class Series implements \Countable
     public function onAxis(Axis|string $axis): self
     {
         $resolved = $axis instanceof Axis ? $axis : Axis::from($axis);
-        return new self($this->points, $this->name, $this->color, $resolved, $this->showTrend);
+        return new self($this->points, $this->name, $this->color, $resolved, $this->showTrend, $this->errorDisplay);
     }
 
     /**
@@ -179,7 +228,48 @@ final readonly class Series implements \Countable
      */
     public function withTrendLine(bool $on = true): self
     {
-        return new self($this->points, $this->name, $this->color, $this->axis, $on);
+        return new self($this->points, $this->name, $this->color, $this->axis, $on, $this->errorDisplay);
+    }
+
+    /**
+     * Overlay an I-bar at each point: a vertical line from `Point::$low` to
+     * `Point::$high` with horizontal caps. Mutually exclusive with
+     * `withConfidenceBand()` — the last call wins.
+     *
+     * Points without a range (no `low`/`high`) silently skip emission, so a
+     * mixed series renders bars only where the data carries them. Has no
+     * visual effect when no point in the series carries a range.
+     */
+    public function withErrorBars(bool $on = true): self
+    {
+        $mode = $on ? ErrorDisplay::Bars : ErrorDisplay::None;
+        return new self($this->points, $this->name, $this->color, $this->axis, $this->showTrend, $mode);
+    }
+
+    /**
+     * Overlay a filled band between the polyline of lows and the polyline of
+     * highs. Mutually exclusive with `withErrorBars()` — the last call wins.
+     *
+     * The band uses the resolved series color at the theme's
+     * `confidenceBandOpacity`. Points without a range are excluded from the
+     * polyline rather than drawn at zero (the band still renders if at least
+     * two contiguous points carry a range).
+     */
+    public function withConfidenceBand(bool $on = true): self
+    {
+        $mode = $on ? ErrorDisplay::Band : ErrorDisplay::None;
+        return new self($this->points, $this->name, $this->color, $this->axis, $this->showTrend, $mode);
+    }
+
+    /** True when any point in the series carries a finite `low`/`high` range. */
+    public function hasRangeData(): bool
+    {
+        foreach ($this->points as $p) {
+            if ($p->hasRange()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

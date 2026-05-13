@@ -83,6 +83,59 @@ final class Path
     }
 
     /**
+     * Closed band path: forward polyline through `$lowPoints`, joined to a
+     * reversed polyline through `$highPoints`. Both polylines may be smoothed
+     * with the same cubic interpolation as `line()`/`smoothLine()`.
+     *
+     * Used by line charts to draw confidence intervals around a series. The
+     * two arrays must have the same length and share x-coordinates per index
+     * for the band to align with the underlying value polyline.
+     *
+     * @param list<array{0: float, 1: float}> $lowPoints
+     * @param list<array{0: float, 1: float}> $highPoints
+     */
+    public static function band(array $lowPoints, array $highPoints, bool $smooth = false): string
+    {
+        if ($lowPoints === [] || $highPoints === []) {
+            return '';
+        }
+        $reversedHighs = array_reverse($highPoints);
+        $forward = $smooth ? self::smoothLine($lowPoints) : self::line($lowPoints);
+        $backward = $smooth ? self::smoothLine($reversedHighs) : self::line($reversedHighs);
+        // Replace the second polyline's leading "M" with "L" so the path joins
+        // rather than starting a new sub-path.
+        $backwardJoined = 'L' . substr($backward, 1);
+        return $forward . ' ' . $backwardJoined . ' Z';
+    }
+
+    /**
+     * Concatenated I-bar paths for a list of error bars. Each bar is a
+     * vertical stroke from `lowY` to `highY` at `x`, plus a horizontal cap
+     * of total width `2 * halfCap` at each end.
+     *
+     * Returns the empty string when `$bars` is empty so callers can skip the
+     * `<path>` emission entirely.
+     *
+     * @param list<array{0: float, 1: float, 2: float}> $bars  Each [x, lowY, highY].
+     */
+    public static function errorBars(array $bars, float $halfCap): string
+    {
+        if ($bars === []) {
+            return '';
+        }
+        $f = static fn(float $v): string => Tag::formatFloat($v);
+        $parts = [];
+        foreach ($bars as [$x, $lowY, $highY]) {
+            $left = $x - $halfCap;
+            $right = $x + $halfCap;
+            $parts[] = "M{$f($x)},{$f($lowY)} L{$f($x)},{$f($highY)}";
+            $parts[] = "M{$f($left)},{$f($lowY)} L{$f($right)},{$f($lowY)}";
+            $parts[] = "M{$f($left)},{$f($highY)} L{$f($right)},{$f($highY)}";
+        }
+        return implode(' ', $parts);
+    }
+
+    /**
      * Closed area path: line across the top, then drop to baseline and close.
      *
      * @param list<array{0: float, 1: float}> $points

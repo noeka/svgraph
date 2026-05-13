@@ -134,6 +134,28 @@ The trend overlay itself is decorative — it doesn't receive keyboard
 focus or its own tab stop, so screen-reader users hear the regression
 once via the chart description rather than once per data point.
 
+## Point ranges
+
+Points carrying `low`/`high` (see
+[`withErrorBars()` / `withConfidenceBand()`](charts/line.md#error-bars--confidence-bands))
+surface their uncertainty range everywhere a sighted user reads the
+value:
+
+- Each marker's `<title>` is extended — `Sample — Mon: 12 (9–15)` —
+  so a screen reader announcing the focused point includes the range.
+- The matching tooltip mirrors the title.
+- The screen-reader data table appends the range to the value cell
+  (`<td>12 (9–15)</td>`), so users navigating the table hear both the
+  point value and its uncertainty.
+- The chart's Y-axis domain auto-extends to include `low`/`high` even
+  when no overlay is rendered, so the axis labels remain consistent
+  with the announced ranges.
+
+The error-bar and confidence-band overlays themselves are decorative —
+they don't carry their own tab stops or `<title>`s, so the range only
+reaches assistive tech once per point rather than once per overlay
+element.
+
 ## Color contrast
 
 Pie/donut legends, axis labels, and progress text use `theme.textColor`.
