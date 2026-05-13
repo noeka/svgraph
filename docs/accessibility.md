@@ -114,6 +114,26 @@ reduced motion. The animation rules are wrapped in
 "reduce motion" in their accessibility preferences see the chart in its
 final state immediately. See [Animations](animations.md) for details.
 
+## Trend overlays
+
+When a series has [`withTrendLine()`](charts/line.md#trend-line-linear-regression)
+enabled, the rendered trend `<path>` carries an SVG `<title>` describing
+the regression — e.g. `Revenue — Trend: slope 4, R² 0.95` — so browsers
+and screen readers can surface the fit statistics on demand. The chart's
+accessible `<desc>` is also extended with one short summary sentence per
+trended series, appended after the data range summary:
+
+```html
+<desc id="svgraph-1-desc">
+  Line chart with 1 series of 9 points. Range: 12 to 45.
+  Revenue trend: slope 4, R² 0.95.
+</desc>
+```
+
+The trend overlay itself is decorative — it doesn't receive keyboard
+focus or its own tab stop, so screen-reader users hear the regression
+once via the chart description rather than once per data point.
+
 ## Color contrast
 
 Pie/donut legends, axis labels, and progress text use `theme.textColor`.

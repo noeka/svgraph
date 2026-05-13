@@ -305,6 +305,72 @@ extents — only the domain (and `LogScale` base) is read from it.
   checked for positivity, so you can mix a log left axis with a right
   axis containing zero or negative values.
 
+## Trend line (linear regression)
+
+Toggle `Series::withTrendLine()` to overlay an ordinary least-squares
+best-fit line on a series. The overlay is a single dashed, half-opacity
+`<path>` drawn on top of the raw data and clipped to the data's
+x-range — never extrapolated past the first or last point.
+
+```php
+use Noeka\Svgraph\Chart;
+use Noeka\Svgraph\Data\Series;
+
+Chart::line()
+    ->addSeries(
+        Series::of('Revenue', [
+            'Jan' => 12, 'Feb' => 19, 'Mar' => 18,
+            'Apr' => 27, 'May' => 24, 'Jun' => 33,
+            'Jul' => 31, 'Aug' => 42, 'Sep' => 45,
+        ], '#3b82f6')->withTrendLine(),
+    )
+    ->axes()->grid()->points();
+```
+
+![Line chart with linear-regression trend overlay](../images/line-trend-line.svg)
+
+The trend line shares the series color so the relationship between data
+and fit is visually obvious. Toggle it off again with
+`->withTrendLine(false)`.
+
+### Accessing the regression statistics
+
+The slope, intercept, and coefficient of determination (R²) are
+computed from the series' (index, value) pairs and are accessible
+whether the overlay is rendered or not:
+
+```php
+$series = Series::of('Revenue', $monthly);
+$stats = $series->trendStats();
+// ['slope' => float, 'intercept' => float, 'r2' => float] or null when the
+// series has fewer than two points.
+```
+
+The chart's rendered trend `<path>` also carries an SVG `<title>`
+containing the slope and R² (e.g. `Revenue — Trend: slope 4, R² 0.95`)
+so they surface in browser tooltips and assistive technology, and the
+chart's accessible `<desc>` summary is extended with the same numbers
+for every series whose trend is enabled.
+
+For raw access to the math against arbitrary points (not just series
+indices), call `Noeka\Svgraph\Analytics\Regression::linear($points)`
+directly with an array of `[x, y]` tuples.
+
+### Notes and limits
+
+- The trend is drawn from `(x₀, slope·x₀ + intercept)` to
+  `(xₙ₋₁, slope·xₙ₋₁ + intercept)` in **column-index space** — so for
+  a `timeAxis()` chart it still spans the visible plot but the slope
+  represents value per column position, not value per unit time.
+- Series with fewer than two finite points (or whose x values are all
+  identical, which can't happen for index-keyed series) skip the
+  overlay silently.
+- Toggling a series via the [legend](#multi-series) hides its trend
+  overlay too — the trend carries the same `.series-{N}` class as the
+  underlying data.
+- The overlay is **not** focusable or part of the tab order; the trend
+  is decorative context, not a separate data series.
+
 ## Annotations
 
 Reference lines, threshold bands, target zones, and callouts overlay

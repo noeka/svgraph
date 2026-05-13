@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Noeka\Svgraph\Data;
 
+use Noeka\Svgraph\Analytics\Regression;
+
 /**
  * One data series. Carries optional metadata (`name`, `color`) so multi-series
  * charts can label and theme each series independently.
@@ -28,6 +30,7 @@ final readonly class Series implements \Countable
         public string $name = '',
         public ?string $color = null,
         public Axis $axis = Axis::Left,
+        public bool $showTrend = false,
     ) {
         $values = [];
         $min = INF;
@@ -144,12 +147,12 @@ final readonly class Series implements \Countable
 
     public function withName(string $name): self
     {
-        return new self($this->points, $name, $this->color, $this->axis);
+        return new self($this->points, $name, $this->color, $this->axis, $this->showTrend);
     }
 
     public function withColor(?string $color): self
     {
-        return new self($this->points, $this->name, $color, $this->axis);
+        return new self($this->points, $this->name, $color, $this->axis, $this->showTrend);
     }
 
     /**
@@ -161,7 +164,45 @@ final readonly class Series implements \Countable
     public function onAxis(Axis|string $axis): self
     {
         $resolved = $axis instanceof Axis ? $axis : Axis::from($axis);
-        return new self($this->points, $this->name, $this->color, $resolved);
+        return new self($this->points, $this->name, $this->color, $resolved, $this->showTrend);
+    }
+
+    /**
+     * Toggle linear regression trend overlay rendering for this series.
+     *
+     * The overlay is a separate dashed half-opacity line drawn on top of
+     * the raw data, clipped to the data's x-range (not extrapolated). Has
+     * no effect on chart types that don't render trend lines (e.g. pie).
+     *
+     * The trend's slope, intercept and R² are always available via
+     * `trendStats()` regardless of this flag.
+     */
+    public function withTrendLine(bool $on = true): self
+    {
+        return new self($this->points, $this->name, $this->color, $this->axis, $on);
+    }
+
+    /**
+     * Linear regression statistics for this series using point indices
+     * (0, 1, …, n-1) as x and series values as y.
+     *
+     * Returns `null` when the series has fewer than two finite points; the
+     * caller (chart or user code) decides how to surface that — typically
+     * by skipping the trend overlay.
+     *
+     * @return array{slope: float, intercept: float, r2: float}|null
+     */
+    public function trendStats(): ?array
+    {
+        $count = count($this->values);
+        if ($count < 2) {
+            return null;
+        }
+        $pairs = [];
+        foreach ($this->values as $i => $v) {
+            $pairs[] = [(float) $i, $v];
+        }
+        return Regression::linear($pairs);
     }
 
     public function count(): int
