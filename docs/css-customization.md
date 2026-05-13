@@ -69,6 +69,26 @@ You can replace any of those by writing more-specific rules — your
 selectors win because they're loaded from your stylesheet (after the
 chart's inline `<style>`).
 
+## Trend overlays
+
+Line charts with `Series::withTrendLine()` emit one extra
+`<path class="svgraph-trend series-{N}">` per trended series, drawn
+on top of the raw data. The trend's `svgraph-trend` class comes first
+so it isn't picked up by the `path[class^="series-"]` hover rules,
+keeping the overlay visually static while still letting legend toggles
+hide it (they match the `.series-{N}` class by name, not prefix).
+
+Override the overlay's defaults from your stylesheet — for example to
+darken the dash or swap to a solid line:
+
+```css
+.svgraph-trend {
+    stroke-dasharray: 0;     /* solid */
+    opacity: 0.8;
+    stroke-width: 1.5;
+}
+```
+
 ## Line-chart crosshair
 
 When `->crosshair()` is enabled on a line chart, the markup gains:

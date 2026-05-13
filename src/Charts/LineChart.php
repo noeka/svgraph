@@ -293,6 +293,9 @@ class LineChart extends AbstractChart
         foreach ($this->seriesCollection->items as $i => $series) {
             $ys = $series->axis === Axis::Right && $rightYScale instanceof Scale ? $rightYScale : $leftYScale;
             $this->renderSeries($wrapper, $series, $i, $xScale, $ys, $viewport, $strokeWidth, $timeScale);
+            if ($series->showTrend) {
+                $this->renderTrend($wrapper, $series, $i, $xScale, $ys, $strokeWidth);
+            }
         }
 
         if ($this->showCrosshair) {
@@ -606,6 +609,64 @@ class LineChart extends AbstractChart
     }
 
     /**
+     * Linear-regression trend overlay, rendered as a single `<path>` from the
+     * first to the last data index — never extrapolated past the visible
+     * range. Styled distinctly (dashed, half-opacity) and class-ordered as
+     * `svgraph-trend series-{n}` so legend toggles still hide it but the
+     * `[class^="series-"]` hover rules don't fire on it.
+     *
+     * The path carries an SVG `<title>` describing slope and R² so the
+     * regression statistics surface in browser tooltips and assistive tech.
+     */
+    private function renderTrend(
+        Wrapper $wrapper,
+        Series $series,
+        int $index,
+        Scale $xScale,
+        Scale $yScale,
+        float $strokeWidth,
+    ): void {
+        $stats = $series->trendStats();
+        if ($stats === null) {
+            return;
+        }
+
+        $count = count($series->values);
+        $lastIndex = (float) ($count - 1);
+        $yStart = $stats['intercept'];
+        $yEnd = $stats['slope'] * $lastIndex + $stats['intercept'];
+
+        $points = [
+            [$xScale->map(0.0), $yScale->map($yStart)],
+            [$xScale->map($lastIndex), $yScale->map($yEnd)],
+        ];
+
+        $color = $this->resolveColor($series, $index);
+        $title = sprintf(
+            'Trend: slope %s, R² %s',
+            $this->formatNumber($stats['slope']),
+            $this->formatNumber($stats['r2']),
+        );
+        if ($series->name !== '') {
+            $title = $series->name . ' — ' . $title;
+        }
+
+        $path = Tag::make('path', [
+            'class' => "svgraph-trend series-{$index}",
+            'd' => Path::line($points),
+            'fill' => 'none',
+            'stroke' => $color,
+            'stroke-width' => Tag::formatFloat($strokeWidth),
+            'stroke-dasharray' => '4,3',
+            'stroke-linecap' => 'round',
+            'opacity' => '0.5',
+            'vector-effect' => 'non-scaling-stroke',
+        ])->append(Tag::make('title')->append($title));
+
+        $wrapper->add($path);
+    }
+
+    /**
      * Per-series color: explicit Series->color wins, then `->stroke()` for
      * series 0 (the chart-level shortcut), then the theme palette.
      */
@@ -857,7 +918,7 @@ class LineChart extends AbstractChart
         $points = $this->seriesCollection->maxLength();
         $min = $this->formatNumber($this->seriesCollection->valueMin());
         $max = $this->formatNumber($this->seriesCollection->valueMax());
-        return sprintf(
+        $base = sprintf(
             '%s with %d series of %d %s. Range: %s to %s.',
             $this->defaultTitle(),
             $count,
@@ -866,6 +927,25 @@ class LineChart extends AbstractChart
             $min,
             $max,
         );
+
+        $trends = [];
+        foreach ($this->seriesCollection->items as $i => $series) {
+            if (!$series->showTrend) {
+                continue;
+            }
+            $stats = $series->trendStats();
+            if ($stats === null) {
+                continue;
+            }
+            $name = $series->name !== '' ? $series->name : 'Series ' . ($i + 1);
+            $trends[] = sprintf(
+                '%s trend: slope %s, R² %s',
+                $name,
+                $this->formatNumber($stats['slope']),
+                $this->formatNumber($stats['r2']),
+            );
+        }
+        return $trends === [] ? $base : $base . ' ' . implode('. ', $trends) . '.';
     }
 
     #[\Override]
