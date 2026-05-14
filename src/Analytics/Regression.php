@@ -37,22 +37,26 @@ final class Regression
     public static function linear(array $points): array
     {
         $n = count($points);
+
         if ($n < 2) {
             throw new InvalidArgumentException('Linear regression requires at least 2 points.');
         }
 
         $sumX = 0.0;
         $sumY = 0.0;
+
         foreach ($points as $p) {
             $sumX += (float) $p[0];
             $sumY += (float) $p[1];
         }
+
         $meanX = $sumX / $n;
         $meanY = $sumY / $n;
 
         $ssXX = 0.0;
         $ssXY = 0.0;
         $ssYY = 0.0;
+
         foreach ($points as $p) {
             $dx = (float) $p[0] - $meanX;
             $dy = (float) $p[1] - $meanY;

@@ -31,35 +31,46 @@ final readonly class Slice
     public static function listFrom(iterable $input): array
     {
         $slices = [];
+
         foreach ($input as $key => $value) {
             if ($value instanceof self) {
                 if (is_finite($value->value)) {
                     $slices[] = $value;
                 }
+
                 continue;
             }
+
             if (is_array($value)) {
                 if (count($value) < 2) {
                     throw new \InvalidArgumentException(
                         'Slice tuple must contain at least [label, value]; got ' . count($value) . ' element(s).',
                     );
                 }
+
                 $label = self::toString($value[0] ?? '');
                 $val = self::toFloat($value[1] ?? 0);
+
                 if (!is_finite($val)) {
                     continue;
                 }
+
                 $color = isset($value[2]) ? self::toString($value[2]) : null;
                 $link = isset($value[3]) && $value[3] instanceof Link ? $value[3] : null;
                 $slices[] = new self($label, $val, $color, $link);
+
                 continue;
             }
+
             $val = self::toFloat($value);
+
             if (!is_finite($val)) {
                 continue;
             }
+
             $slices[] = new self(self::toString($key), $val);
         }
+
         return $slices;
     }
 

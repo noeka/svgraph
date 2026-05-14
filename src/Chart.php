@@ -17,9 +17,11 @@ final class Chart
     public static function line(?iterable $data = null): LineChart
     {
         $chart = new LineChart();
+
         if ($data !== null) {
             $chart->data($data);
         }
+
         return $chart;
     }
 
@@ -27,9 +29,11 @@ final class Chart
     public static function sparkline(?iterable $data = null): SparklineChart
     {
         $chart = new SparklineChart();
+
         if ($data !== null) {
             $chart->data($data);
         }
+
         return $chart;
     }
 
@@ -37,9 +41,11 @@ final class Chart
     public static function bar(?iterable $data = null): BarChart
     {
         $chart = new BarChart();
+
         if ($data !== null) {
             $chart->data($data);
         }
+
         return $chart;
     }
 
@@ -47,9 +53,11 @@ final class Chart
     public static function pie(?iterable $data = null): PieChart
     {
         $chart = new PieChart();
+
         if ($data !== null) {
             $chart->data($data);
         }
+
         return $chart;
     }
 
@@ -57,9 +65,11 @@ final class Chart
     public static function donut(?iterable $data = null): DonutChart
     {
         $chart = new DonutChart();
+
         if ($data !== null) {
             $chart->data($data);
         }
+
         return $chart;
     }
 

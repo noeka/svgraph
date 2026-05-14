@@ -37,28 +37,34 @@ final class ThresholdBand extends Annotation
     public function fill(string $color): self
     {
         $this->fillColor = $color;
+
         return $this;
     }
 
     public function label(string $text): self
     {
         $this->labelText = $text;
+
         return $this;
     }
 
     public function onAxis(Axis|string $axis): self
     {
         $this->axis = $axis instanceof Axis ? $axis : Axis::from($axis);
+
         return $this;
     }
 
     public function render(AnnotationContext $context): string
     {
         $coords = $this->coordinates($context);
+
         if ($coords === null) {
             return '';
         }
+
         $viewport = $context->viewport;
+
         return (string) Tag::void('rect', [
             'class' => 'svgraph-annotation-band',
             'x' => Tag::formatFloat($viewport->plotLeft()),
@@ -75,10 +81,13 @@ final class ThresholdBand extends Annotation
         if ($this->labelText === null || $this->labelText === '') {
             return [];
         }
+
         $coords = $this->coordinates($context);
+
         if ($coords === null) {
             return [];
         }
+
         return [new Label(
             text: $this->labelText,
             left: $context->viewport->plotLeft() + 1,
@@ -97,20 +106,25 @@ final class ThresholdBand extends Annotation
     private function coordinates(AnnotationContext $context): ?array
     {
         $scale = $context->yScaleFor($this->axis);
+
         if (!$scale instanceof Scale) {
             return null;
         }
+
         $domainMin = min($scale->domainMin, $scale->domainMax);
         $domainMax = max($scale->domainMin, $scale->domainMax);
         $low = min($this->from, $this->to);
         $high = max($this->from, $this->to);
+
         if ($high < $domainMin || $low > $domainMax) {
             return null;
         }
+
         $low = max($low, $domainMin);
         $high = min($high, $domainMax);
         $yLow = $scale->map($low);
         $yHigh = $scale->map($high);
+
         return [min($yLow, $yHigh), max($yLow, $yHigh)];
     }
 }

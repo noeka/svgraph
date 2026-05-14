@@ -35,11 +35,13 @@ final readonly class LogScale extends Scale
                 'LogScale requires a strictly positive domain; got [' . $domainMin . ', ' . $domainMax . '].',
             );
         }
+
         if ($base <= 1.0) {
             throw new InvalidArgumentException(
                 'LogScale base must be greater than 1; got ' . $base . '.',
             );
         }
+
         parent::__construct($domainMin, $domainMax, $rangeStart, $rangeEnd, $invert);
     }
 
@@ -59,6 +61,7 @@ final readonly class LogScale extends Scale
         if ($domainMin === $domainMax) {
             $domainMax = $domainMin * $base;
         }
+
         return new self($domainMin, $domainMax, $rangeStart, $rangeEnd, $invert, $base);
     }
 
@@ -70,13 +73,17 @@ final readonly class LogScale extends Scale
                 'LogScale cannot map non-positive value ' . $value . '.',
             );
         }
+
         $logMin = log($this->domainMin, $this->base);
         $logMax = log($this->domainMax, $this->base);
         $logVal = log($value, $this->base);
+
         $t = ($logVal - $logMin) / ($logMax - $logMin);
+
         if ($this->invert) {
             return $this->rangeEnd - $t * ($this->rangeEnd - $this->rangeStart);
         }
+
         return $this->rangeStart + $t * ($this->rangeEnd - $this->rangeStart);
     }
 
@@ -93,17 +100,19 @@ final readonly class LogScale extends Scale
     {
         $low = (int) floor(log($this->domainMin, $this->base));
         $high = (int) ceil(log($this->domainMax, $this->base));
+
         $ticks = [];
+
         for ($p = $low; $p <= $high; $p++) {
             $v = $this->base ** $p;
-            if ($v < $this->domainMin) {
+
+            if ($v < $this->domainMin || $v > $this->domainMax) {
                 continue;
             }
-            if ($v > $this->domainMax) {
-                continue;
-            }
+
             $ticks[] = $v;
         }
+
         return $ticks;
     }
 }

@@ -44,18 +44,21 @@ final class Callout extends Annotation
     {
         $this->offsetX = $dx;
         $this->offsetY = $dy;
+
         return $this;
     }
 
     public function color(string $color): self
     {
         $this->color = $color;
+
         return $this;
     }
 
     public function onAxis(Axis|string $axis): self
     {
         $this->axis = $axis instanceof Axis ? $axis : Axis::from($axis);
+
         return $this;
     }
 
@@ -68,9 +71,11 @@ final class Callout extends Annotation
     public function render(AnnotationContext $context): string
     {
         $anchor = $this->anchor($context);
+
         if ($anchor === null) {
             return '';
         }
+
         [$ax, $ay] = $anchor;
         [$tx, $ty] = $this->labelPoint($context, $ax, $ay);
         $color = $this->color ?? $context->theme->axisColor;
@@ -92,6 +97,7 @@ final class Callout extends Annotation
             'r' => '0.6',
             'fill' => $color,
         ]);
+
         return $line . $dot;
     }
 
@@ -99,14 +105,17 @@ final class Callout extends Annotation
     public function labels(AnnotationContext $context): array
     {
         $anchor = $this->anchor($context);
+
         if ($anchor === null) {
             return [];
         }
+
         [$ax, $ay] = $anchor;
         [$tx, $ty] = $this->labelPoint($context, $ax, $ay);
         $color = $this->color ?? $context->theme->axisColor;
         $align = $this->offsetX < 0.0 ? 'end' : 'start';
         $vAlign = $this->offsetY < 0.0 ? 'bottom' : 'top';
+
         return [new Label(
             text: $this->text,
             left: $tx,
@@ -126,19 +135,25 @@ final class Callout extends Annotation
     private function anchor(AnnotationContext $context): ?array
     {
         $scale = $context->yScaleFor($this->axis);
+
         if (!$scale instanceof Scale) {
             return null;
         }
+
         if (!$context->yInDomain($this->y, $this->axis)) {
             return null;
         }
+
         if (!$context->xInDomain($this->x)) {
             return null;
         }
+
         $x = $context->mapX($this->x);
+
         if ($x === null) {
             return null;
         }
+
         return [$x, $scale->map($this->y)];
     }
 
@@ -153,6 +168,7 @@ final class Callout extends Annotation
         $viewport = $context->viewport;
         $tx = max($viewport->plotLeft(), min($viewport->plotRight(), $ax + $this->offsetX));
         $ty = max($viewport->plotTop(), min($viewport->plotBottom(), $ay + $this->offsetY));
+
         return [$tx, $ty];
     }
 }

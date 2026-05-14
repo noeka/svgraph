@@ -34,6 +34,7 @@ class PieChart extends AbstractChart
     public function data(iterable $data): static
     {
         $this->slices = Slice::listFrom($data);
+
         return $this;
     }
 
@@ -43,12 +44,14 @@ class PieChart extends AbstractChart
     public function thickness(float $fraction): static
     {
         $this->thickness = max(0.0, min(0.95, $fraction));
+
         return $this;
     }
 
     public function legend(bool $on = true): static
     {
         $this->showLegend = $on;
+
         return $this;
     }
 
@@ -58,6 +61,7 @@ class PieChart extends AbstractChart
     public function startAngle(float $degrees): static
     {
         $this->startAngle = $degrees;
+
         return $this;
     }
 
@@ -67,6 +71,7 @@ class PieChart extends AbstractChart
     public function gap(float $degrees): static
     {
         $this->padAngle = max(0.0, $degrees);
+
         return $this;
     }
 
@@ -78,15 +83,19 @@ class PieChart extends AbstractChart
 
         if ($this->slices === []) {
             $this->applyAccessibility($wrapper);
+
             return $wrapper->render();
         }
 
         $total = 0.0;
+
         foreach ($this->slices as $slice) {
             $total += max(0.0, $slice->value);
         }
+
         if ($total <= 0.0) {
             $this->applyAccessibility($wrapper);
+
             return $wrapper->render();
         }
 
@@ -147,25 +156,32 @@ class PieChart extends AbstractChart
                 leftPct: $cx / $viewport->width * 100,
                 topPct: ($cy - $outerRadius) / $viewport->height * 100,
             ));
+
             if ($hasLegend) {
                 $this->addLegend($wrapper);
             }
+
             return;
         }
 
         $angle = $startRad;
+
         foreach ($this->slices as $i => $slice) {
             $value = max(0.0, $slice->value);
+
             if ($value <= 0.0) {
                 continue;
             }
+
             $sweep = ($value / $total) * 2 * M_PI;
             $start = $angle + ($padRad / 2);
             $end = $angle + $sweep - ($padRad / 2);
+
             if ($end <= $start) {
                 $angle += $sweep;
                 continue;
             }
+
             $color = $slice->color ?? $this->theme->colorAt($i);
             $d = Path::arc($cx, $cy, $outerRadius, $innerRadius, $start, $end);
             $id = "{$chartId}-pt-{$i}";
@@ -256,9 +272,11 @@ class PieChart extends AbstractChart
                 leftPct: $cx / $viewport->width * 100,
                 topPct: ($cy - $outerRadius) / $viewport->height * 100,
             ));
+
             if ($hasLegend) {
                 $this->addLegend($wrapper);
             }
+
             return;
         }
 
@@ -268,11 +286,14 @@ class PieChart extends AbstractChart
         $circ = Tag::formatFloat($circumference);
 
         $angle = $startRad;
+
         foreach ($this->slices as $i => $slice) {
             $value = max(0.0, $slice->value);
+
             if ($value <= 0.0) {
                 continue;
             }
+
             $sweepAngle = ($value / $total) * 2.0 * M_PI;
             $sweepArc = $sweepAngle * $strokeR;
             $visibleArc = max(0.0, $sweepArc - $padRad * $strokeR);
@@ -338,11 +359,15 @@ class PieChart extends AbstractChart
         if ($this->slices === []) {
             return $this->defaultTitle() . ' (no data).';
         }
+
         $total = 0.0;
+
         foreach ($this->slices as $slice) {
             $total += max(0.0, $slice->value);
         }
+
         $count = count($this->slices);
+
         return sprintf(
             '%s with %d %s totalling %s.',
             $this->defaultTitle(),
@@ -358,13 +383,16 @@ class PieChart extends AbstractChart
         if ($this->slices === []) {
             return ['columns' => [], 'rows' => []];
         }
+
         $rows = [];
+
         foreach ($this->slices as $slice) {
             $rows[] = [
                 $slice->label !== '' ? $slice->label : 'Slice',
                 $this->formatNumber($slice->value),
             ];
         }
+
         return ['columns' => ['Slice', 'Value'], 'rows' => $rows];
     }
 
@@ -372,9 +400,11 @@ class PieChart extends AbstractChart
     {
         $legendTopPercent = 86.0;
         $count = count($this->slices);
+
         if ($count === 0) {
             return;
         }
+
         $columns = min(4, max(1, $count));
         $colWidth = 100.0 / $columns;
 

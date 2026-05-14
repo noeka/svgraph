@@ -35,6 +35,7 @@ final readonly class Point
         if (!$this->hasRange()) {
             return null;
         }
+
         return min((float) $this->low, (float) $this->high);
     }
 
@@ -44,6 +45,7 @@ final readonly class Point
         if (!$this->hasRange()) {
             return null;
         }
+
         return max((float) $this->low, (float) $this->high);
     }
 }

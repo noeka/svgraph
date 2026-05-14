@@ -51,30 +51,35 @@ final class ReferenceLine extends Annotation
     public function label(string $text): self
     {
         $this->labelText = $text;
+
         return $this;
     }
 
     public function color(string $color): self
     {
         $this->color = $color;
+
         return $this;
     }
 
     public function strokeWidth(float $width): self
     {
         $this->strokeWidth = max(0.0, $width);
+
         return $this;
     }
 
     public function solid(): self
     {
         $this->dashed = false;
+
         return $this;
     }
 
     public function dashed(bool $on = true): self
     {
         $this->dashed = $on;
+
         return $this;
     }
 
@@ -85,15 +90,18 @@ final class ReferenceLine extends Annotation
     public function onAxis(Axis|string $axis): self
     {
         $this->axis = $axis instanceof Axis ? $axis : Axis::from($axis);
+
         return $this;
     }
 
     public function render(AnnotationContext $context): string
     {
         $coords = $this->coordinates($context);
+
         if ($coords === null) {
             return '';
         }
+
         $color = $this->color ?? $context->theme->axisColor;
         $attrs = [
             'class' => 'svgraph-annotation-ref',
@@ -105,9 +113,11 @@ final class ReferenceLine extends Annotation
             'stroke-width' => Tag::formatFloat($this->strokeWidth),
             'vector-effect' => 'non-scaling-stroke',
         ];
+
         if ($this->dashed) {
             $attrs['stroke-dasharray'] = '4,3';
         }
+
         return (string) Tag::void('line', $attrs);
     }
 
@@ -117,10 +127,13 @@ final class ReferenceLine extends Annotation
         if ($this->labelText === null || $this->labelText === '') {
             return [];
         }
+
         $coords = $this->coordinates($context);
+
         if ($coords === null) {
             return [];
         }
+
         $viewport = $context->viewport;
         $color = $this->color ?? $context->theme->axisColor;
 
@@ -134,6 +147,7 @@ final class ReferenceLine extends Annotation
                 color: $color,
             )];
         }
+
         return [new Label(
             text: $this->labelText,
             left: $coords[0],
@@ -153,28 +167,37 @@ final class ReferenceLine extends Annotation
     private function coordinates(AnnotationContext $context): ?array
     {
         $viewport = $context->viewport;
+
         if ($this->orientation === self::ORIENT_H) {
             if ($this->value instanceof DateTimeInterface) {
                 return null;
             }
+
             $scale = $context->yScaleFor($this->axis);
+
             if (!$scale instanceof Scale) {
                 return null;
             }
+
             if (!$context->yInDomain($this->value, $this->axis)) {
                 return null;
             }
+
             $y = $scale->map($this->value);
+
             return [$viewport->plotLeft(), $y, $viewport->plotRight(), $y];
         }
 
         if (!$context->xInDomain($this->value)) {
             return null;
         }
+
         $x = $context->mapX($this->value);
+
         if ($x === null) {
             return null;
         }
+
         return [$x, $viewport->plotTop(), $x, $viewport->plotBottom()];
     }
 }

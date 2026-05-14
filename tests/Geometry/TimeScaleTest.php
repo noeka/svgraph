@@ -42,9 +42,11 @@ final class TimeScaleTest extends TestCase
         // Every tick should be a multiple of the bucket step in seconds.
         $stepDeltas = [];
         $counter = count($ticks);
+
         for ($i = 1; $i < $counter; $i++) {
             $stepDeltas[] = $ticks[$i]->getTimestamp() - $ticks[$i - 1]->getTimestamp();
         }
+
         self::assertSame(array_unique($stepDeltas), [array_unique($stepDeltas)[0]]);
         self::assertLessThanOrEqual(30, $stepDeltas[0]);
         self::assertGreaterThanOrEqual(5, $stepDeltas[0]);
@@ -80,10 +82,12 @@ final class TimeScaleTest extends TestCase
 
         $ticks = $scale->timeTicks(5);
         self::assertGreaterThanOrEqual(3, count($ticks));
+
         // Each tick should land at midnight in the configured timezone.
         foreach ($ticks as $t) {
             self::assertSame('00:00:00', $t->format('H:i:s'));
         }
+
         $delta = $ticks[1]->getTimestamp() - $ticks[0]->getTimestamp();
         self::assertGreaterThanOrEqual(86400, $delta);
         self::assertLessThanOrEqual(7 * 86400, $delta);
@@ -98,6 +102,7 @@ final class TimeScaleTest extends TestCase
 
         $ticks = $scale->timeTicks(5);
         self::assertGreaterThanOrEqual(3, count($ticks));
+
         foreach ($ticks as $t) {
             self::assertSame('01-01 00:00:00', $t->format('m-d H:i:s'));
         }
@@ -122,6 +127,7 @@ final class TimeScaleTest extends TestCase
         if (!class_exists(\IntlDateFormatter::class)) {
             self::markTestSkipped('ext-intl not available');
         }
+
         $tz = new DateTimeZone('UTC');
         $start = new DateTimeImmutable('2026-05-01T00:00:00', $tz);
         $end = new DateTimeImmutable('2026-05-31T00:00:00', $tz);

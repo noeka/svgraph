@@ -43,6 +43,7 @@ abstract class AbstractChart implements \Stringable
     public function theme(Theme $theme): static
     {
         $this->theme = $theme;
+
         return $this;
     }
 
@@ -52,12 +53,14 @@ abstract class AbstractChart implements \Stringable
     public function aspect(float $ratio): static
     {
         $this->aspectRatio = $ratio;
+
         return $this;
     }
 
     public function cssClass(?string $class): static
     {
         $this->cssClass = $class;
+
         return $this;
     }
 
@@ -70,6 +73,7 @@ abstract class AbstractChart implements \Stringable
     public function animate(bool $on = true): static
     {
         $this->animated = $on;
+
         return $this;
     }
 
@@ -86,6 +90,7 @@ abstract class AbstractChart implements \Stringable
     public function annotate(Annotation $annotation): static
     {
         $this->annotations[] = $annotation;
+
         return $this;
     }
 
@@ -97,6 +102,7 @@ abstract class AbstractChart implements \Stringable
     public function title(string $text): static
     {
         $this->accessibleTitle = $text;
+
         return $this;
     }
 
@@ -108,6 +114,7 @@ abstract class AbstractChart implements \Stringable
     public function description(string $text): static
     {
         $this->accessibleDescription = $text;
+
         return $this;
     }
 
@@ -123,15 +130,18 @@ abstract class AbstractChart implements \Stringable
         if (abs($value) >= 1000) {
             return number_format($value, 0, '.', ',');
         }
+
         if (floor($value) === $value) {
             return (string) (int) $value;
         }
+
         return rtrim(rtrim(number_format($value, 2, '.', ''), '0'), '.');
     }
 
     protected function tooltip(?string $label, float $value): string
     {
         $formatted = $this->formatNumber($value);
+
         return ($label !== null && $label !== '') ? "{$label}: {$formatted}" : $formatted;
     }
 
@@ -157,13 +167,17 @@ abstract class AbstractChart implements \Stringable
         if (!$link instanceof Link) {
             return $inner->attr('id', $id)->attr('tabindex', '0');
         }
+
         $attrs = ['id' => $id, 'href' => $link->href, 'class' => 'svgraph-linked'];
+
         if ($link->target !== null) {
             $attrs['target'] = $link->target;
         }
+
         if ($link->rel !== '') {
             $attrs['rel'] = $link->rel;
         }
+
         return Tag::make('a', $attrs)->append($inner);
     }
 
@@ -181,7 +195,9 @@ abstract class AbstractChart implements \Stringable
             if ($annotation->layer() !== $layer) {
                 continue;
             }
+
             $svg = $annotation->render($context);
+
             if ($svg !== '') {
                 $wrapper->add($svg);
             }
@@ -210,6 +226,7 @@ abstract class AbstractChart implements \Stringable
         $id = $this->chartId();
         $title = $this->accessibleTitle ?? $this->defaultTitle();
         $description = $this->accessibleDescription ?? $this->defaultDescription();
+
         $wrapper->setAccessibility(
             $id . '-title',
             $title,
@@ -218,6 +235,7 @@ abstract class AbstractChart implements \Stringable
         );
 
         $table = $this->buildDataTable();
+
         if ($table['rows'] !== []) {
             $wrapper->setDataTable($table['columns'], $table['rows']);
         }

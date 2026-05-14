@@ -8,7 +8,7 @@ use Noeka\Svgraph\Geometry\Viewport;
 use Noeka\Svgraph\Theme;
 
 /**
- * Composes the Rich Harris-style envelope: a relatively-positioned <div>
+ * Composes the envelope: a relatively-positioned <div>
  * sized by padding-bottom, an absolutely-positioned <svg> with
  * preserveAspectRatio="none" for shape stretching, and an absolute <div>
  * for HTML labels that stay readable at any aspect ratio.
@@ -60,36 +60,42 @@ final class Wrapper
     public function add(string|Tag $element): self
     {
         $this->svgChildren[] = $element;
+
         return $this;
     }
 
     public function label(Label $label): self
     {
         $this->labels[] = $label;
+
         return $this;
     }
 
     public function tooltip(Tooltip $tooltip): self
     {
         $this->tooltips[] = $tooltip;
+
         return $this;
     }
 
     public function setUserClass(?string $class): self
     {
         $this->userClass = $class;
+
         return $this;
     }
 
     public function markHasSeriesElements(): self
     {
         $this->hasSeriesElements = true;
+
         return $this;
     }
 
     public function enableAnimation(): self
     {
         $this->animated = true;
+
         return $this;
     }
 
@@ -101,6 +107,7 @@ final class Wrapper
     public function enableCrosshair(int $columnCount): self
     {
         $this->crosshairColumns = max(0, $columnCount);
+
         return $this;
     }
 
@@ -111,6 +118,7 @@ final class Wrapper
     public function setSecondaryVariant(string $variant): self
     {
         $this->secondaryVariant = $variant;
+
         return $this;
     }
 
@@ -126,6 +134,7 @@ final class Wrapper
     public function setLegend(array $entries): self
     {
         $this->legendEntries = $entries;
+
         return $this;
     }
 
@@ -148,6 +157,7 @@ final class Wrapper
         $this->titleText = $title;
         $this->descId = $descId;
         $this->descText = $description;
+
         return $this;
     }
 
@@ -161,104 +171,37 @@ final class Wrapper
     public function setDataTable(array $columns, array $rows): self
     {
         $this->dataTable = ['columns' => $columns, 'rows' => $rows];
+
         return $this;
     }
 
     public function render(): string
     {
-        $paddingBottom = (1.0 / max($this->aspectRatio, 0.01)) * 100.0;
-
-        $classes = ['svgraph', 'svgraph--' . $this->variantClass];
-        if ($this->secondaryVariant !== null) {
-            $classes[] = 'svgraph--' . $this->secondaryVariant;
-        }
-        if ($this->userClass !== null && $this->userClass !== '') {
-            $classes[] = $this->userClass;
-        }
-
         $hasLegend = $this->legendEntries !== [];
+        $hasDataTable = $this->dataTable !== null && $this->dataTable['rows'] !== [];
 
         // Aspect-ratio styling sits on whichever element holds the SVG: the
         // outer .svgraph when no legend, or an inner .svgraph__chart when a
         // legend is rendered (so the legend can sit below in flow).
         $aspectStyle = sprintf(
             'position:relative;width:100%%;padding-bottom:%s%%;',
-            Tag::formatFloat($paddingBottom),
+            Tag::formatFloat((1.0 / max($this->aspectRatio, 0.01)) * 100.0),
         );
-        $wrapperStyle = $hasLegend ? '' : $aspectStyle;
 
-        if ($this->tooltips !== []) {
-            $bg = Css::color($this->theme->tooltipBackground) ?? '#1f2937';
-            $fg = Css::color($this->theme->tooltipTextColor) ?? '#f9fafb';
-            $r = Css::length($this->theme->tooltipBorderRadius) ?? '0.25rem';
-            $wrapperStyle .= "--svgraph-tt-bg:{$bg};--svgraph-tt-fg:{$fg};--svgraph-tt-r:{$r};";
-        }
-
-        if ($this->hasSeriesElements) {
-            $brightness = Css::number($this->theme->hoverBrightness) ?? '1.2';
-            $strokeW = Css::number($this->theme->hoverStrokeWidth) ?? '1.5';
-            $popDist = Css::lengthWithUnit($this->theme->piePopDistance) ?? '3px';
-            $wrapperStyle .= "--svgraph-hover-brightness:{$brightness};"
-                . "--svgraph-hover-stroke-width:{$strokeW};"
-                . "--svgraph-pie-pop-distance:{$popDist};";
-        }
-
-        if ($this->animated) {
-            $dur = Css::duration($this->theme->animationDuration) ?? '0.6s';
-            $ease = Css::easing($this->theme->animationEasing) ?? 'ease-out';
-            $wrapperStyle .= "--svgraph-anim-dur:{$dur};--svgraph-anim-ease:{$ease};";
-        }
-
-        $svgStyle = 'position:absolute;inset:0;width:100%;height:100%;display:block;overflow:visible;';
-
-        $svgAttrs = [
-            'xmlns' => 'http://www.w3.org/2000/svg',
-            'viewBox' => $this->viewport->viewBox(),
-            'preserveAspectRatio' => 'none',
-            'style' => $svgStyle,
-            'focusable' => 'false',
-        ];
-        if ($this->titleId !== null && $this->descId !== null) {
-            $svgAttrs['role'] = 'img';
-            $svgAttrs['aria-labelledby'] = $this->titleId;
-            $svgAttrs['aria-describedby'] = $this->descId;
-        } else {
-            $svgAttrs['aria-hidden'] = 'true';
-        }
-
-        $svg = Tag::make('svg', $svgAttrs);
-        // <title> and <desc> must be the first children so AT picks them up
-        // as the SVG's accessible name and description.
-        if ($this->titleId !== null && $this->titleText !== null) {
-            $svg->append(Tag::make('title', ['id' => $this->titleId])->append($this->titleText));
-        }
-        if ($this->descId !== null && $this->descText !== null) {
-            $svg->append(Tag::make('desc', ['id' => $this->descId])->append($this->descText));
-        }
-        foreach ($this->svgChildren as $child) {
-            if ($child instanceof Tag) {
-                $svg->append($child);
-            } else {
-                $svg->appendRaw($child);
-            }
-        }
-
-        $div = Tag::make('div', [
-            'class' => implode(' ', $classes),
-            'style' => $wrapperStyle,
+        $outerDiv = Tag::make('div', [
+            'class' => implode(' ', $this->buildWrapperClasses()),
+            'style' => $this->buildWrapperStyle($hasLegend, $aspectStyle),
         ]);
 
-        $hasDataTable = $this->dataTable !== null && $this->dataTable['rows'] !== [];
-
         if ($this->tooltips !== [] || $this->hasSeriesElements || $this->animated || $this->crosshairColumns > 0 || $hasLegend || $hasDataTable) {
-            $div->appendRaw($this->buildStyle($hasDataTable));
+            $outerDiv->appendRaw($this->buildStyle($hasDataTable));
         }
 
         // Hidden checkbox toggles must precede the chart and legend so the
         // sibling combinator (~) can target them when unchecked.
         if ($hasLegend) {
             foreach ($this->legendEntries as $entry) {
-                $div->append(Tag::void('input', [
+                $outerDiv->append(Tag::void('input', [
                     'type' => 'checkbox',
                     'id' => $entry['id'],
                     'class' => 'svgraph-toggle',
@@ -271,52 +214,156 @@ final class Wrapper
         // The chart parent: outer .svgraph when no legend, inner .svgraph__chart when legend is on.
         $chartParent = $hasLegend
             ? Tag::make('div', ['class' => 'svgraph__chart', 'style' => $aspectStyle])
-            : $div;
+            : $outerDiv;
 
-        $chartParent->append($svg);
+        $chartParent->append($this->buildSvgElement());
 
         if ($this->labels !== []) {
-            $fontFamily = Css::fontFamily($this->theme->fontFamily) ?? 'inherit';
-            $fontSize = Css::length($this->theme->fontSize) ?? '0.75rem';
-            $textColor = Css::color($this->theme->textColor) ?? 'currentColor';
-            $labelStyle = sprintf(
-                'position:absolute;inset:0;pointer-events:none;font-family:%s;font-size:%s;color:%s;line-height:1;',
-                $fontFamily,
-                $fontSize,
-                $textColor,
-            );
-            $labelTag = Tag::make('div', [
-                'class' => 'svgraph__labels',
-                'style' => $labelStyle,
-            ]);
-            foreach ($this->labels as $label) {
-                $labelTag->appendRaw($label->render());
-            }
-            $chartParent->append($labelTag);
+            $chartParent->append($this->buildLabelsElement());
         }
 
-        foreach ($this->tooltips as $tip) {
-            $left = Tag::formatFloat($tip->leftPct) . '%';
-            $top = Tag::formatFloat($tip->topPct) . '%';
-            $attrs = [
-                'class' => 'svgraph-tooltip',
-                'data-for' => $tip->id,
-                'data-x' => $tip->dataX !== null ? (string) $tip->dataX : null,
-                'style' => "position:absolute;left:{$left};top:{$top};",
-            ];
-            $chartParent->append(Tag::make('div', $attrs)->appendRaw($tip->text));
+        foreach ($this->tooltips as $tooltip) {
+            $chartParent->append($this->buildTooltipElement($tooltip));
         }
 
         if ($hasLegend) {
-            $div->append($chartParent);
-            $div->append($this->buildLegend());
+            $outerDiv->append($chartParent);
+            $outerDiv->append($this->buildLegend());
         }
 
         if ($hasDataTable) {
-            $div->appendRaw($this->buildDataTable());
+            $outerDiv->appendRaw($this->buildDataTable());
         }
 
-        return (string) $div;
+        return (string) $outerDiv;
+    }
+
+    /** @return list<string> */
+    private function buildWrapperClasses(): array
+    {
+        $classes = ['svgraph', 'svgraph--' . $this->variantClass];
+
+        if ($this->secondaryVariant !== null) {
+            $classes[] = 'svgraph--' . $this->secondaryVariant;
+        }
+
+        if ($this->userClass !== null && $this->userClass !== '') {
+            $classes[] = $this->userClass;
+        }
+
+        return $classes;
+    }
+
+    private function buildWrapperStyle(bool $hasLegend, string $aspectStyle): string
+    {
+        $style = $hasLegend ? '' : $aspectStyle;
+
+        if ($this->tooltips !== []) {
+            $tooltipBackground = Css::color($this->theme->tooltipBackground) ?? '#1f2937';
+            $tooltipForeground = Css::color($this->theme->tooltipTextColor) ?? '#f9fafb';
+            $tooltipBorderRadius = Css::length($this->theme->tooltipBorderRadius) ?? '0.25rem';
+            $style .= "--svgraph-tt-bg:{$tooltipBackground};--svgraph-tt-fg:{$tooltipForeground};--svgraph-tt-r:{$tooltipBorderRadius};";
+        }
+
+        if ($this->hasSeriesElements) {
+            $hoverBrightness = Css::number($this->theme->hoverBrightness) ?? '1.2';
+            $strokeWidth = Css::number($this->theme->hoverStrokeWidth) ?? '1.5';
+            $popDistance = Css::lengthWithUnit($this->theme->piePopDistance) ?? '3px';
+            $style .= "--svgraph-hover-brightness:{$hoverBrightness};"
+                . "--svgraph-hover-stroke-width:{$strokeWidth};"
+                . "--svgraph-pie-pop-distance:{$popDistance};";
+        }
+
+        if ($this->animated) {
+            $animationDuration = Css::duration($this->theme->animationDuration) ?? '0.6s';
+            $animationEasing = Css::easing($this->theme->animationEasing) ?? 'ease-out';
+            $style .= "--svgraph-anim-dur:{$animationDuration};--svgraph-anim-ease:{$animationEasing};";
+        }
+
+        return $style;
+    }
+
+    private function buildSvgElement(): Tag
+    {
+        $svgStyle = 'position:absolute;inset:0;width:100%;height:100%;display:block;overflow:visible;';
+
+        $accessibilityAttributes = $this->titleId !== null && $this->descId !== null
+            ? ['role' => 'img', 'aria-labelledby' => $this->titleId, 'aria-describedby' => $this->descId]
+            : ['aria-hidden' => 'true'];
+
+        $svg = Tag::make('svg', [
+            'xmlns' => 'http://www.w3.org/2000/svg',
+            'viewBox' => $this->viewport->viewBox(),
+            'preserveAspectRatio' => 'none',
+            'style' => $svgStyle,
+            'focusable' => 'false',
+            ...$accessibilityAttributes,
+        ]);
+
+        // <title> and <desc> must be the first children so AT picks them up
+        // as the SVG's accessible name and description.
+        if ($this->titleId !== null && $this->titleText !== null) {
+            $svg->append(Tag::make('title', ['id' => $this->titleId])->append($this->titleText));
+        }
+
+        if ($this->descId !== null && $this->descText !== null) {
+            $svg->append(Tag::make('desc', ['id' => $this->descId])->append($this->descText));
+        }
+
+        foreach ($this->svgChildren as $child) {
+            $child instanceof Tag ? $svg->append($child) : $svg->appendRaw($child);
+        }
+
+        return $svg;
+    }
+
+    private function buildLabelsElement(): Tag
+    {
+        $labelStyle = sprintf(
+            'position:absolute;inset:0;pointer-events:none;font-family:%s;font-size:%s;color:%s;line-height:1;',
+            $this->resolvedFontFamily(),
+            $this->resolvedFontSize(),
+            $this->resolvedTextColor(),
+        );
+
+        $labelDiv = Tag::make('div', [
+            'class' => 'svgraph__labels',
+            'style' => $labelStyle,
+        ]);
+
+        foreach ($this->labels as $label) {
+            $labelDiv->appendRaw($label->render());
+        }
+
+        return $labelDiv;
+    }
+
+    private function buildTooltipElement(Tooltip $tooltip): Tag
+    {
+        $left = Tag::formatFloat($tooltip->leftPct) . '%';
+        $top = Tag::formatFloat($tooltip->topPct) . '%';
+
+        return Tag::make('div', [
+            'class' => 'svgraph-tooltip',
+            'data-for' => $tooltip->id,
+            'data-x' => $tooltip->dataX !== null ? (string) $tooltip->dataX : null,
+            'style' => "position:absolute;left:{$left};top:{$top};",
+        ])->appendRaw($tooltip->text);
+    }
+
+    private function resolvedFontFamily(): string
+    {
+        return Css::fontFamily($this->theme->fontFamily) ?? 'inherit';
+    }
+
+    private function resolvedFontSize(): string
+    {
+        return Css::length($this->theme->fontSize) ?? '0.75rem';
+    }
+
+    private function resolvedTextColor(): string
+    {
+        return Css::color($this->theme->textColor) ?? 'currentColor';
     }
 
     /**
@@ -331,27 +378,35 @@ final class Wrapper
         if ($this->dataTable === null) {
             return '';
         }
+
         $table = Tag::make('table', ['class' => 'svgraph-sr-only']);
         $thead = Tag::make('thead');
         $headRow = Tag::make('tr');
-        foreach ($this->dataTable['columns'] as $col) {
-            $headRow->append(Tag::make('th', ['scope' => 'col'])->append($col));
+
+        foreach ($this->dataTable['columns'] as $column) {
+            $headRow->append(Tag::make('th', ['scope' => 'col'])->append($column));
         }
+
         $thead->append($headRow);
         $table->append($thead);
 
         $tbody = Tag::make('tbody');
+
         foreach ($this->dataTable['rows'] as $row) {
-            $tr = Tag::make('tr');
-            foreach ($row as $i => $cell) {
+            $tableRow = Tag::make('tr');
+
+            foreach ($row as $index => $cell) {
                 // First cell of each row scopes the row; remaining cells are data.
-                $tag = $i === 0
+                $cellTag = $index === 0
                     ? Tag::make('th', ['scope' => 'row'])
                     : Tag::make('td');
-                $tr->append($tag->append($cell));
+
+                $tableRow->append($cellTag->append($cell));
             }
-            $tbody->append($tr);
+
+            $tbody->append($tableRow);
         }
+
         $table->append($tbody);
 
         return (string) $table;
@@ -360,18 +415,23 @@ final class Wrapper
     private function buildLegend(): Tag
     {
         $legend = Tag::make('div', ['class' => 'svgraph-legend']);
+
         foreach ($this->legendEntries as $entry) {
             $swatchColor = Css::color($entry['color']) ?? 'currentColor';
+
             $label = Tag::make('label', [
                 'for' => $entry['id'],
                 'class' => 'svgraph-legend__entry',
             ]);
+
             $label->appendRaw(
                 '<span class="svgraph-legend__swatch" style="background:' . $swatchColor . ';"></span>',
             );
+
             $label->append($entry['name']);
             $legend->append($label);
         }
+
         return $legend;
     }
 
@@ -418,26 +478,24 @@ final class Wrapper
      */
     private function buildLegendStyle(): string
     {
-        $fontFamily = Css::fontFamily($this->theme->fontFamily) ?? 'inherit';
-        $fontSize = Css::length($this->theme->fontSize) ?? '0.75rem';
-        $textColor = Css::color($this->theme->textColor) ?? 'currentColor';
-
         // Visually-hidden checkbox (still keyboard-focusable via the matched <label>).
         $base = '.svgraph-toggle{position:absolute;width:1px;height:1px;padding:0;margin:-1px;'
             . 'overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;}'
             . ".svgraph-legend{display:flex;flex-wrap:wrap;gap:0.4em 1em;margin-top:0.5em;"
-            . "font-family:{$fontFamily};font-size:{$fontSize};color:{$textColor};line-height:1.2;}"
+            . "font-family:{$this->resolvedFontFamily()};font-size:{$this->resolvedFontSize()};color:{$this->resolvedTextColor()};line-height:1.2;}"
             . '.svgraph-legend__entry{display:inline-flex;align-items:center;gap:0.4em;'
             . 'cursor:pointer;user-select:none;transition:opacity 0.15s;}'
             . '.svgraph-legend__swatch{display:inline-block;width:0.8em;height:0.8em;'
             . 'border-radius:0.15em;flex:none;}';
 
         $rules = '';
+
         foreach ($this->legendEntries as $entry) {
             $id = $entry['id'];
-            $n = $entry['seriesIndex'];
+            $seriesIndex = $entry['seriesIndex'];
+
             // id is built from chartId() (svgraph-{int}) + s{int}; only [a-zA-Z0-9-].
-            $rules .= "#{$id}:not(:checked)~.svgraph__chart .series-{$n}{display:none;}"
+            $rules .= "#{$id}:not(:checked)~.svgraph__chart .series-{$seriesIndex}{display:none;}"
                 . "#{$id}:not(:checked)~.svgraph-legend label[for=\"{$id}\"]{opacity:0.4;}"
                 . "#{$id}:focus-visible~.svgraph-legend label[for=\"{$id}\"]{"
                 . 'outline:2px solid currentColor;outline-offset:2px;}';
@@ -503,14 +561,15 @@ final class Wrapper
             . 'transform:translate(-50%,-100%);margin-top:-.25rem;}';
 
         $rules = '';
-        foreach ($this->tooltips as $tip) {
+
+        foreach ($this->tooltips as $tooltip) {
             // id only contains [a-zA-Z0-9-] — no CSS escaping needed.
-            $id = $tip->id;
+            $id = $tooltip->id;
             $rules .= ".svgraph:has(#{$id}:hover) [data-for=\"{$id}\"],"
                 . ".svgraph:has(#{$id}:focus-visible) [data-for=\"{$id}\"]{display:block;}";
         }
 
-        return $base . '@supports selector(:has(a)){' . $rules . '}';
+        return $base . $this->wrapInSupportsHas($rules);
     }
 
     /**
@@ -531,24 +590,26 @@ final class Wrapper
             . '.svgraph-x-hit{fill:transparent;cursor:crosshair;}';
 
         $rules = '';
-        for ($i = 0; $i < $this->crosshairColumns; $i++) {
-            $rules .= ".svgraph svg:has([data-x=\"{$i}\"]:hover) .svgraph-crosshair[data-x=\"{$i}\"],"
-                . ".svgraph svg:has([data-x=\"{$i}\"]:focus-within) .svgraph-crosshair[data-x=\"{$i}\"]{opacity:1;}"
-                . ".svgraph svg:has([data-x=\"{$i}\"]:hover) g[data-x=\"{$i}\"]>ellipse:first-child,"
-                . ".svgraph svg:has([data-x=\"{$i}\"]:focus-within) g[data-x=\"{$i}\"]>ellipse:first-child{"
+
+        for ($column = 0; $column < $this->crosshairColumns; $column++) {
+            $rules .= ".svgraph svg:has([data-x=\"{$column}\"]:hover) .svgraph-crosshair[data-x=\"{$column}\"],"
+                . ".svgraph svg:has([data-x=\"{$column}\"]:focus-within) .svgraph-crosshair[data-x=\"{$column}\"]{opacity:1;}"
+                . ".svgraph svg:has([data-x=\"{$column}\"]:hover) g[data-x=\"{$column}\"]>ellipse:first-child,"
+                . ".svgraph svg:has([data-x=\"{$column}\"]:focus-within) g[data-x=\"{$column}\"]>ellipse:first-child{"
                 . 'opacity:1;filter:brightness(var(--svgraph-hover-brightness,1.2));}'
-                . ".svgraph:has([data-x=\"{$i}\"]:hover) .svgraph-tooltip[data-x=\"{$i}\"],"
-                . ".svgraph:has([data-x=\"{$i}\"]:focus-within) .svgraph-tooltip[data-x=\"{$i}\"]{display:block;}";
+                . ".svgraph:has([data-x=\"{$column}\"]:hover) .svgraph-tooltip[data-x=\"{$column}\"],"
+                . ".svgraph:has([data-x=\"{$column}\"]:focus-within) .svgraph-tooltip[data-x=\"{$column}\"]{display:block;}";
         }
 
-        return $base . '@supports selector(:has(a)){' . $rules . '}';
+        return $base . $this->wrapInSupportsHas($rules);
     }
 
     private function buildAnimationStyle(): string
     {
-        $dur = 'var(--svgraph-anim-dur,0.6s)';
-        $ease = 'var(--svgraph-anim-ease,ease-out)';
+        $durationVar = 'var(--svgraph-anim-dur,0.6s)';
+        $easingVar = 'var(--svgraph-anim-ease,ease-out)';
         $css = '';
+        $reducedMotionCss = '';
 
         // Line / sparkline: stroke-dasharray draw-on using pathLength="1" normalisation.
         // stroke-dasharray="1" and stroke-dashoffset="1" are set as HTML attributes
@@ -556,28 +617,14 @@ final class Wrapper
         if ($this->variantClass === 'line' || $this->variantClass === 'sparkline') {
             $css .= '@keyframes svgraph-draw-line{from{stroke-dashoffset:1}to{stroke-dashoffset:0}}'
                 . '.svgraph--' . $this->variantClass . ' .svgraph-line-path{'
-                . 'animation:svgraph-draw-line ' . $dur . ' ' . $ease . ' both;}';
+                . 'animation:svgraph-draw-line ' . $durationVar . ' ' . $easingVar . ' both;}';
+            // stroke-dashoffset="1" is set in the HTML; override it to 0 here.
+            $reducedMotionCss .= '.svgraph--' . $this->variantClass . ' .svgraph-line-path{stroke-dashoffset:0;}';
         }
 
         // Bar: scale from the baseline edge on enter.
         if ($this->variantClass === 'bar') {
-            if ($this->secondaryVariant === 'bar-h') {
-                // Horizontal bars grow from left (positive) or right (negative).
-                $css .= '@keyframes svgraph-grow-hbar{from{transform:scaleX(0)}to{transform:scaleX(1)}}'
-                    . '.svgraph--bar.svgraph--bar-h rect[class^="series-"]{'
-                    . 'transform-box:fill-box;'
-                    . 'transform-origin:var(--svgraph-bar-tfo,left center);'
-                    . 'animation:svgraph-grow-hbar ' . $dur . ' ' . $ease . ' both;'
-                    . 'animation-delay:var(--svgraph-bar-delay,0s);}';
-            } else {
-                // Vertical bars grow from bottom (positive) or top (negative).
-                $css .= '@keyframes svgraph-grow-vbar{from{transform:scaleY(0)}to{transform:scaleY(1)}}'
-                    . '.svgraph--bar:not(.svgraph--bar-h) rect[class^="series-"]{'
-                    . 'transform-box:fill-box;'
-                    . 'transform-origin:var(--svgraph-bar-tfo,center bottom);'
-                    . 'animation:svgraph-grow-vbar ' . $dur . ' ' . $ease . ' both;'
-                    . 'animation-delay:var(--svgraph-bar-delay,0s);}';
-            }
+            $css .= $this->buildBarAnimationStyle($durationVar, $easingVar);
         }
 
         // Pie / donut: stroke-dasharray sweep using the stroke-circle technique.
@@ -590,28 +637,45 @@ final class Wrapper
                 . 'from{stroke-dasharray:0 var(--svgraph-pie-circ)}'
                 . 'to{stroke-dasharray:var(--svgraph-pie-len) calc(var(--svgraph-pie-circ) - var(--svgraph-pie-len))}}'
                 . '.svgraph--' . $this->variantClass . ' circle[class^="series-"]{'
-                . 'animation:svgraph-pie-sweep ' . $dur . ' ' . $ease . ' both;'
+                . 'animation:svgraph-pie-sweep ' . $durationVar . ' ' . $easingVar . ' both;'
                 . 'animation-delay:var(--svgraph-pie-delay,0ms);}';
-        }
-
-        $reduceCss = '';
-
-        // Reduced-motion fallbacks: show the final state without animation for
-        // users who request reduced motion but whose page still calls ->animate().
-        if ($this->variantClass === 'line' || $this->variantClass === 'sparkline') {
-            // stroke-dashoffset="1" is set in the HTML; override it to 0 here.
-            $reduceCss .= '.svgraph--' . $this->variantClass . ' .svgraph-line-path{stroke-dashoffset:0;}';
-        }
-        if ($this->variantClass === 'pie' || $this->variantClass === 'donut') {
             // stroke-dasharray="0 circ" is the initial hidden state; show the final arc.
-            $reduceCss .= '.svgraph--' . $this->variantClass . ' circle[class^="series-"]{'
+            $reducedMotionCss .= '.svgraph--' . $this->variantClass . ' circle[class^="series-"]{'
                 . 'stroke-dasharray:var(--svgraph-pie-len) calc(var(--svgraph-pie-circ) - var(--svgraph-pie-len));}';
         }
 
         $result = '@media (prefers-reduced-motion:no-preference){' . $css . '}';
-        if ($reduceCss !== '') {
-            $result .= '@media (prefers-reduced-motion:reduce){' . $reduceCss . '}';
+
+        if ($reducedMotionCss !== '') {
+            $result .= '@media (prefers-reduced-motion:reduce){' . $reducedMotionCss . '}';
         }
+
         return $result;
+    }
+
+    private function buildBarAnimationStyle(string $durationVar, string $easingVar): string
+    {
+        if ($this->secondaryVariant === 'bar-h') {
+            // Horizontal bars grow from left (positive) or right (negative).
+            return '@keyframes svgraph-grow-hbar{from{transform:scaleX(0)}to{transform:scaleX(1)}}'
+                . '.svgraph--bar.svgraph--bar-h rect[class^="series-"]{'
+                . 'transform-box:fill-box;'
+                . 'transform-origin:var(--svgraph-bar-tfo,left center);'
+                . 'animation:svgraph-grow-hbar ' . $durationVar . ' ' . $easingVar . ' both;'
+                . 'animation-delay:var(--svgraph-bar-delay,0s);}';
+        }
+
+        // Vertical bars grow from bottom (positive) or top (negative).
+        return '@keyframes svgraph-grow-vbar{from{transform:scaleY(0)}to{transform:scaleY(1)}}'
+            . '.svgraph--bar:not(.svgraph--bar-h) rect[class^="series-"]{'
+            . 'transform-box:fill-box;'
+            . 'transform-origin:var(--svgraph-bar-tfo,center bottom);'
+            . 'animation:svgraph-grow-vbar ' . $durationVar . ' ' . $easingVar . ' both;'
+            . 'animation-delay:var(--svgraph-bar-delay,0s);}';
+    }
+
+    private function wrapInSupportsHas(string $rules): string
+    {
+        return '@supports selector(:has(a)){' . $rules . '}';
     }
 }

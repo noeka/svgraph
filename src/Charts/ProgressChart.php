@@ -28,24 +28,28 @@ final class ProgressChart extends AbstractChart
     public function value(float $value): static
     {
         $this->value = $value;
+
         return $this;
     }
 
     public function target(float $target): static
     {
         $this->target = $target;
+
         return $this;
     }
 
     public function color(string $color): static
     {
         $this->color = $color;
+
         return $this;
     }
 
     public function trackColor(string $color): static
     {
         $this->trackColor = $color;
+
         return $this;
     }
 
@@ -55,6 +59,7 @@ final class ProgressChart extends AbstractChart
     public function rounded(float $percent): static
     {
         $this->cornerRadius = max(0.0, min(50.0, $percent));
+
         return $this;
     }
 
@@ -65,6 +70,7 @@ final class ProgressChart extends AbstractChart
     {
         $this->showValue = $on;
         $this->valueLabel = $label;
+
         return $this;
     }
 
@@ -134,6 +140,7 @@ final class ProgressChart extends AbstractChart
         $percent = $this->target > 0.0
             ? round(max(0.0, min(1.0, $this->value / $this->target)) * 100)
             : 0.0;
+
         return sprintf(
             'Progress: %s of %s (%s%%).',
             $this->formatNumber($this->value),

@@ -37,6 +37,7 @@ final class Tag implements \Stringable
     public function attr(string $key, string|int|float|bool|null $value): self
     {
         $this->attributes[$key] = $value;
+
         return $this;
     }
 
@@ -48,6 +49,7 @@ final class Tag implements \Stringable
         foreach ($attributes as $key => $value) {
             $this->attributes[$key] = $value;
         }
+
         return $this;
     }
 
@@ -56,13 +58,16 @@ final class Tag implements \Stringable
         if ($child === null) {
             return $this;
         }
+
         $this->children[] = $child instanceof self ? (string) $child : self::escapeText($child);
+
         return $this;
     }
 
     public function appendRaw(string $markup): self
     {
         $this->children[] = $markup;
+
         return $this;
     }
 
@@ -75,6 +80,7 @@ final class Tag implements \Stringable
         }
 
         $inner = implode('', $this->children);
+
         return "<{$this->name}{$attrs}>{$inner}</{$this->name}>";
     }
 
@@ -94,23 +100,24 @@ final class Tag implements \Stringable
     private function renderAttributes(array $attributes): string
     {
         $out = '';
+
         foreach ($attributes as $key => $value) {
-            if ($value === null) {
+            if ($value === null || $value === false || ! $this->isValidAttrName($key)) {
                 continue;
             }
-            if ($value === false) {
-                continue;
-            }
-            if (!$this->isValidAttrName($key)) {
-                continue;
-            }
+
             if ($value === true) {
                 $out .= ' ' . $key;
                 continue;
             }
-            $stringified = is_float($value) ? self::formatFloat($value) : (string) $value;
+
+            $stringified = is_float($value)
+                ? self::formatFloat($value)
+                : (string) $value;
+
             $out .= ' ' . $key . '="' . self::escapeAttr($stringified) . '"';
         }
+
         return $out;
     }
 
@@ -124,7 +131,9 @@ final class Tag implements \Stringable
         if (is_nan($value) || is_infinite($value)) {
             return '0';
         }
+
         $formatted = rtrim(rtrim(number_format($value, 4, '.', ''), '0'), '.');
+
         return $formatted === '' || $formatted === '-' ? '0' : $formatted;
     }
 }

@@ -41,9 +41,11 @@ final readonly class TimeScale extends Scale
     ) {
         $startTs = (float) $start->format('U.u');
         $endTs = (float) $end->format('U.u');
+
         if ($startTs >= $endTs) {
             $endTs = $startTs + 1.0;
         }
+
         parent::__construct($startTs, $endTs, $rangeStart, $rangeEnd);
 
         $this->start = $start;
@@ -66,20 +68,20 @@ final readonly class TimeScale extends Scale
         ?string $format = null,
         ?bool $useIntl = null,
     ): self {
-        $collected = [];
-        foreach ($values as $v) {
-            $collected[] = $v;
-        }
-        if ($collected === []) {
-            $min = new DateTimeImmutable('@0');
-            $max = new DateTimeImmutable('@1');
-        } else {
+        $collected = iterator_to_array($values, preserve_keys: false);
+
+        $min = new DateTimeImmutable('@0');
+        $max = new DateTimeImmutable('@1');
+
+        if ($collected !== []) {
             $min = $collected[0];
             $max = $collected[0];
+
             for ($i = 1, $n = count($collected); $i < $n; $i++) {
                 if ($collected[$i] < $min) {
                     $min = $collected[$i];
                 }
+
                 if ($collected[$i] > $max) {
                     $max = $collected[$i];
                 }
@@ -87,8 +89,10 @@ final readonly class TimeScale extends Scale
         }
 
         $tz = is_string($timezone) ? new DateTimeZone($timezone) : $timezone;
+
         $start = DateTimeImmutable::createFromInterface($min);
         $end = DateTimeImmutable::createFromInterface($max);
+
         if ($tz instanceof \DateTimeZone) {
             $start = $start->setTimezone($tz);
             $end = $end->setTimezone($tz);
@@ -115,12 +119,15 @@ final readonly class TimeScale extends Scale
         if ($count < 2) {
             $count = 2;
         }
+
         $rangeSec = $this->domainMax - $this->domainMin;
+
         if ($rangeSec <= 0.0) {
             return [$this->boundary($this->start)];
         }
 
         $bucket = $this->pickBucket($rangeSec / ($count - 1));
+
         return $this->generateTicks($bucket);
     }
 
@@ -134,6 +141,7 @@ final readonly class TimeScale extends Scale
         if ($count < 2) {
             $count = 2;
         }
+
         $rangeSec = $this->domainMax - $this->domainMin;
         $approxStep = $rangeSec > 0.0 ? $rangeSec / ($count - 1) : 1.0;
         $bucket = $this->pickBucket($approxStep);
@@ -146,6 +154,7 @@ final readonly class TimeScale extends Scale
 
         $phpFormat = $this->format ?? $bucket['php'];
         $whenInTz = DateTimeImmutable::createFromInterface($when)->setTimezone($tz);
+
         return $whenInTz->format($phpFormat);
     }
 
@@ -155,14 +164,18 @@ final readonly class TimeScale extends Scale
     private function pickBucket(float $approxStepSec): array
     {
         $best = $this->buckets()[0];
+
         $bestDiff = INF;
+
         foreach ($this->buckets() as $b) {
             $diff = abs(log10(max($b['sec'], 1e-9)) - log10(max($approxStepSec, 1e-9)));
+
             if ($diff < $bestDiff) {
                 $bestDiff = $diff;
                 $best = $b;
             }
         }
+
         return $best;
     }
 
@@ -173,19 +186,26 @@ final readonly class TimeScale extends Scale
     private function generateTicks(array $bucket): array
     {
         $tz = $this->timezone ?? $this->start->getTimezone();
+
         $startInTz = $this->start->setTimezone($tz);
         $endInTz = $this->end->setTimezone($tz);
 
         $cur = $this->snapDown($startInTz, $bucket['unit'], $bucket['step']);
+
         $ticks = [];
+
         $guard = 0;
+
         while ($cur <= $endInTz && $guard < 1024) {
             if ($cur >= $startInTz) {
                 $ticks[] = $cur;
             }
+
             $cur = $this->advance($cur, $bucket['unit'], $bucket['step']);
+
             $guard++;
         }
+
         return $ticks;
     }
 
@@ -219,22 +239,26 @@ final readonly class TimeScale extends Scale
             'year'   => "+{$step} years",
             default  => '+1 day',
         };
+
         return $d->modify($modify);
     }
 
     private function boundary(DateTimeImmutable $d): DateTimeImmutable
     {
         $tz = $this->timezone ?? $d->getTimezone();
+
         return $d->setTimezone($tz);
     }
 
     private function formatWithIntl(DateTimeInterface $when, string $icu, DateTimeZone $tz): string
     {
         $pattern = $this->format ?? $icu;
+
         // ICU rejects the bare "Z" zone name PHP uses for Zulu time; UTC is the
         // canonical equivalent it does accept.
         $tzName = $tz->getName();
         $intlTz = $tzName === 'Z' ? new DateTimeZone('UTC') : $tz;
+
         $fmt = new IntlDateFormatter(
             $this->locale,
             IntlDateFormatter::NONE,
@@ -243,7 +267,9 @@ final readonly class TimeScale extends Scale
             IntlDateFormatter::GREGORIAN,
             $pattern,
         );
+
         $out = $fmt->format($when);
+
         return $out === false ? $when->format(DateTimeInterface::ATOM) : $out;
     }
 

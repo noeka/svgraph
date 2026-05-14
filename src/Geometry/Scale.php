@@ -32,15 +32,18 @@ readonly class Scale
         if ($domainMin === $domainMax) {
             $domainMax = $domainMin + 1.0;
         }
+
         return new self($domainMin, $domainMax, $rangeStart, $rangeEnd, $invert);
     }
 
     public function map(float $value): float
     {
         $t = ($value - $this->domainMin) / ($this->domainMax - $this->domainMin);
+
         if ($this->invert) {
             return $this->rangeEnd - $t * ($this->rangeEnd - $this->rangeStart);
         }
+
         return $this->rangeStart + $t * ($this->rangeEnd - $this->rangeStart);
     }
 
@@ -54,7 +57,9 @@ readonly class Scale
         if ($count < 2) {
             $count = 2;
         }
+
         $range = $this->domainMax - $this->domainMin;
+
         if ($range <= 0.0) {
             return [$this->domainMin];
         }
@@ -62,25 +67,27 @@ readonly class Scale
         $rawStep = $range / ($count - 1);
         $magnitude = 10 ** floor(log10($rawStep));
         $normalized = $rawStep / $magnitude;
+
         $step = match (true) {
             $normalized < 1.5 => 1 * $magnitude,
-            $normalized < 3   => 2 * $magnitude,
-            $normalized < 7   => 5 * $magnitude,
-            default           => 10 * $magnitude,
+            $normalized < 3 => 2 * $magnitude,
+            $normalized < 7 => 5 * $magnitude,
+            default => 10 * $magnitude,
         };
 
         $start = floor($this->domainMin / $step) * $step;
         $end = ceil($this->domainMax / $step) * $step;
+
         $ticks = [];
+
         for ($v = $start; $v <= $end + $step / 2; $v += $step) {
-            if ($v < $this->domainMin - $step / 2) {
+            if ($v < $this->domainMin - $step / 2 || $v > $this->domainMax + $step / 2) {
                 continue;
             }
-            if ($v > $this->domainMax + $step / 2) {
-                continue;
-            }
+
             $ticks[] = round($v, 10);
         }
+
         return $ticks;
     }
 }

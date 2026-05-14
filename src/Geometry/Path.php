@@ -21,10 +21,13 @@ final class Path
         if ($points === []) {
             return '';
         }
+
         $parts = [];
+
         foreach ($points as $i => [$x, $y]) {
             $parts[] = ($i === 0 ? 'M' : 'L') . Tag::formatFloat($x) . ',' . Tag::formatFloat($y);
         }
+
         return implode(' ', $parts);
     }
 
@@ -38,17 +41,21 @@ final class Path
     public static function smoothLine(array $points, float $tension = 0.35): string
     {
         $count = count($points);
+
         if ($count === 0) {
             return '';
         }
+
         if ($count < 3) {
             return self::line($points);
         }
 
         $tangents = [];
+
         for ($i = 0; $i < $count; $i++) {
             $prev = $points[max(0, $i - 1)];
             $next = $points[min($count - 1, $i + 1)];
+
             $tx = $next[0] - $prev[0];
             $ty = $next[1] - $prev[1];
 
@@ -56,17 +63,21 @@ final class Path
                 $here = $points[$i][1];
                 $dPrev = $points[$i - 1][1] - $here;
                 $dNext = $points[$i + 1][1] - $here;
-                if ($dPrev * $dNext >= 0) {
-                    $ty = 0.0;
-                }
+
+                $ty = $dPrev * $dNext >= 0
+                    ? 0.0
+                    : $ty;
             }
+
             $tangents[$i] = [$tx, $ty];
         }
 
         $parts = ['M' . Tag::formatFloat($points[0][0]) . ',' . Tag::formatFloat($points[0][1])];
+
         for ($i = 0; $i < $count - 1; $i++) {
             $p1 = $points[$i];
             $p2 = $points[$i + 1];
+
             [$t1x, $t1y] = $tangents[$i];
             [$t2x, $t2y] = $tangents[$i + 1];
 
@@ -79,6 +90,7 @@ final class Path
                 . ' ' . Tag::formatFloat($c2x) . ',' . Tag::formatFloat($c2y)
                 . ' ' . Tag::formatFloat($p2[0]) . ',' . Tag::formatFloat($p2[1]);
         }
+
         return implode(' ', $parts);
     }
 
@@ -99,12 +111,16 @@ final class Path
         if ($lowPoints === [] || $highPoints === []) {
             return '';
         }
+
         $reversedHighs = array_reverse($highPoints);
+
         $forward = $smooth ? self::smoothLine($lowPoints) : self::line($lowPoints);
         $backward = $smooth ? self::smoothLine($reversedHighs) : self::line($reversedHighs);
+
         // Replace the second polyline's leading "M" with "L" so the path joins
         // rather than starting a new sub-path.
         $backwardJoined = 'L' . substr($backward, 1);
+
         return $forward . ' ' . $backwardJoined . ' Z';
     }
 
@@ -123,15 +139,20 @@ final class Path
         if ($bars === []) {
             return '';
         }
+
         $f = static fn(float $v): string => Tag::formatFloat($v);
+
         $parts = [];
+
         foreach ($bars as [$x, $lowY, $highY]) {
             $left = $x - $halfCap;
             $right = $x + $halfCap;
+
             $parts[] = "M{$f($x)},{$f($lowY)} L{$f($x)},{$f($highY)}";
             $parts[] = "M{$f($left)},{$f($lowY)} L{$f($right)},{$f($lowY)}";
             $parts[] = "M{$f($left)},{$f($highY)} L{$f($right)},{$f($highY)}";
         }
+
         return implode(' ', $parts);
     }
 
@@ -145,9 +166,11 @@ final class Path
         if ($points === []) {
             return '';
         }
+
         $top = $smooth ? self::smoothLine($points) : self::line($points);
         $last = $points[count($points) - 1];
         $first = $points[0];
+
         return $top
             . ' L' . Tag::formatFloat($last[0]) . ',' . Tag::formatFloat($baselineY)
             . ' L' . Tag::formatFloat($first[0]) . ',' . Tag::formatFloat($baselineY)
@@ -168,6 +191,7 @@ final class Path
         float $endAngle,
     ): string {
         $sweep = $endAngle - $startAngle;
+
         // Full-circle case: emit two semicircles to avoid the degenerate
         // "start == end" arc that browsers render as nothing.
         if (abs($sweep) >= 2 * M_PI - 1e-6) {
@@ -198,8 +222,10 @@ final class Path
     private static function fullRing(float $cx, float $cy, float $outerRadius, float $innerRadius): string
     {
         $f = static fn(float $v): string => Tag::formatFloat($v);
+
         $top = $cy - $outerRadius;
         $bottom = $cy + $outerRadius;
+
         $outer = "M{$f($cx)},{$f($top)} "
             . "A{$f($outerRadius)},{$f($outerRadius)} 0 1 1 {$f($cx)},{$f($bottom)} "
             . "A{$f($outerRadius)},{$f($outerRadius)} 0 1 1 {$f($cx)},{$f($top)} Z";
@@ -210,9 +236,11 @@ final class Path
 
         $iTop = $cy - $innerRadius;
         $iBottom = $cy + $innerRadius;
+
         $inner = "M{$f($cx)},{$f($iTop)} "
             . "A{$f($innerRadius)},{$f($innerRadius)} 0 1 0 {$f($cx)},{$f($iBottom)} "
             . "A{$f($innerRadius)},{$f($innerRadius)} 0 1 0 {$f($cx)},{$f($iTop)} Z";
+
         return $outer . ' ' . $inner;
     }
 
@@ -225,6 +253,7 @@ final class Path
     {
         $x = $cx + $radius * sin($angle);
         $y = $cy - $radius * cos($angle);
+
         return [$x, $y];
     }
 }

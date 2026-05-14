@@ -48,31 +48,42 @@ final readonly class Series implements \Countable
         $boundsMin = INF;
         $boundsMax = -INF;
         $sum = 0.0;
+
         foreach ($this->points as $p) {
             $v = $p->value;
+
             $values[] = $v;
+
             if ($v < $min) {
                 $min = $v;
             }
+
             if ($v > $max) {
                 $max = $v;
             }
+
             if ($v < $boundsMin) {
                 $boundsMin = $v;
             }
+
             if ($v > $boundsMax) {
                 $boundsMax = $v;
             }
+
             $rangeMin = $p->rangeMin();
             $rangeMax = $p->rangeMax();
+
             if ($rangeMin !== null && $rangeMin < $boundsMin) {
                 $boundsMin = $rangeMin;
             }
+
             if ($rangeMax !== null && $rangeMax > $boundsMax) {
                 $boundsMax = $rangeMax;
             }
+
             $sum += $v;
         }
+
         $this->values = $values;
         $this->min = $values === [] ? 0.0 : $min;
         $this->max = $values === [] ? 0.0 : $max;
@@ -121,38 +132,51 @@ final readonly class Series implements \Countable
     private static function normalise(iterable $input): array
     {
         $points = [];
+
         foreach ($input as $key => $value) {
             if ($value instanceof Point) {
                 if (is_finite($value->value)) {
                     $points[] = $value;
                 }
+
                 continue;
             }
+
             if (is_array($value) && count($value) >= 2) {
                 $arr = array_values($value);
                 $val = self::toFloat($arr[1]);
+
                 if (!is_finite($val)) {
                     continue;
                 }
+
                 $link = isset($arr[2]) && $arr[2] instanceof Link ? $arr[2] : null;
                 $rangeStart = $link instanceof Link ? 3 : 2;
                 $low = self::toRangeFloat($arr[$rangeStart] ?? null);
                 $high = self::toRangeFloat($arr[$rangeStart + 1] ?? null);
+
                 if ($low === null || $high === null) {
                     $low = null;
                     $high = null;
                 }
+
                 $time = self::toTime($arr[0]);
                 $label = $time instanceof \DateTimeImmutable ? null : self::toLabel($arr[0]);
+
                 $points[] = new Point($val, $label, $link, $time, $low, $high);
+
                 continue;
             }
+
             $val = self::toFloat($value);
+
             if (!is_finite($val)) {
                 continue;
             }
+
             $points[] = new Point($val, is_string($key) ? $key : null);
         }
+
         return $points;
     }
 
@@ -161,9 +185,11 @@ final readonly class Series implements \Countable
         if ($v instanceof \DateTimeImmutable) {
             return $v;
         }
+
         if ($v instanceof \DateTimeInterface) {
             return \DateTimeImmutable::createFromInterface($v);
         }
+
         return null;
     }
 
@@ -182,7 +208,9 @@ final readonly class Series implements \Countable
         if ($v === null || !is_numeric($v)) {
             return null;
         }
+
         $f = (float) $v;
+
         return is_finite($f) ? $f : null;
     }
 
@@ -191,6 +219,7 @@ final readonly class Series implements \Countable
         if ($v === null) {
             return null;
         }
+
         return is_scalar($v) ? (string) $v : null;
     }
 
@@ -213,6 +242,7 @@ final readonly class Series implements \Countable
     public function onAxis(Axis|string $axis): self
     {
         $resolved = $axis instanceof Axis ? $axis : Axis::from($axis);
+
         return new self($this->points, $this->name, $this->color, $resolved, $this->showTrend, $this->errorDisplay);
     }
 
@@ -243,6 +273,7 @@ final readonly class Series implements \Countable
     public function withErrorBars(bool $on = true): self
     {
         $mode = $on ? ErrorDisplay::Bars : ErrorDisplay::None;
+
         return new self($this->points, $this->name, $this->color, $this->axis, $this->showTrend, $mode);
     }
 
@@ -258,6 +289,7 @@ final readonly class Series implements \Countable
     public function withConfidenceBand(bool $on = true): self
     {
         $mode = $on ? ErrorDisplay::Band : ErrorDisplay::None;
+
         return new self($this->points, $this->name, $this->color, $this->axis, $this->showTrend, $mode);
     }
 
@@ -269,6 +301,7 @@ final readonly class Series implements \Countable
                 return true;
             }
         }
+
         return false;
     }
 
@@ -285,13 +318,17 @@ final readonly class Series implements \Countable
     public function trendStats(): ?array
     {
         $count = count($this->values);
+
         if ($count < 2) {
             return null;
         }
+
         $pairs = [];
+
         foreach ($this->values as $i => $v) {
             $pairs[] = [(float) $i, $v];
         }
+
         return Regression::linear($pairs);
     }
 
@@ -339,6 +376,7 @@ final readonly class Series implements \Countable
                 return true;
             }
         }
+
         return false;
     }
 }

@@ -62,6 +62,7 @@ class LineChart extends AbstractChart
     public function series(iterable $data): static
     {
         $this->seriesCollection = new SeriesCollection([Series::from($data)]);
+
         return $this;
     }
 
@@ -78,21 +79,25 @@ class LineChart extends AbstractChart
     public function addSeries(Series $series): static
     {
         $this->seriesCollection = $this->seriesCollection->with($series);
+
         return $this;
     }
 
     public function stroke(string $color, ?float $width = null): static
     {
         $this->strokeColor = $color;
+
         if ($width !== null) {
             $this->strokeWidth = $width;
         }
+
         return $this;
     }
 
     public function strokeWidth(float $width): static
     {
         $this->strokeWidth = $width;
+
         return $this;
     }
 
@@ -101,30 +106,35 @@ class LineChart extends AbstractChart
         $this->fillEnabled = true;
         $this->fillColor = $color;
         $this->fillOpacity = $opacity;
+
         return $this;
     }
 
     public function smooth(bool $smooth = true): static
     {
         $this->smooth = $smooth;
+
         return $this;
     }
 
     public function axes(bool $on = true): static
     {
         $this->showAxes = $on;
+
         return $this;
     }
 
     public function grid(bool $on = true): static
     {
         $this->showGrid = $on;
+
         return $this;
     }
 
     public function points(bool $on = true): static
     {
         $this->showPoints = $on;
+
         return $this;
     }
 
@@ -140,12 +150,14 @@ class LineChart extends AbstractChart
     public function crosshair(bool $on = true): static
     {
         $this->showCrosshair = $on;
+
         return $this;
     }
 
     public function ticks(int $count): static
     {
         $this->tickCount = max(2, $count);
+
         return $this;
     }
 
@@ -165,6 +177,7 @@ class LineChart extends AbstractChart
         $this->timeAxisLocale = $locale;
         $this->timeAxisTz = $tz !== null ? new \DateTimeZone($tz) : null;
         $this->timeAxisFormat = $format;
+
         return $this;
     }
 
@@ -177,6 +190,7 @@ class LineChart extends AbstractChart
     public function legend(bool $on = true): static
     {
         $this->showLegend = $on;
+
         return $this;
     }
 
@@ -193,12 +207,14 @@ class LineChart extends AbstractChart
     public function logScale(float $base = 10.0, Axis|string $axis = Axis::Left): static
     {
         $resolved = $axis instanceof Axis ? $axis : Axis::from($axis);
+
         if ($resolved === Axis::Right) {
             $this->rightLogBase = $base;
             $this->secondaryAxisEnabled = true;
         } else {
             $this->leftLogBase = $base;
         }
+
         return $this;
     }
 
@@ -217,9 +233,11 @@ class LineChart extends AbstractChart
     {
         $this->secondaryAxisEnabled = true;
         $this->secondaryAxisOverride = $scale;
+
         if ($scale instanceof LogScale) {
             $this->rightLogBase = $scale->base;
         }
+
         return $this;
     }
 
@@ -242,6 +260,7 @@ class LineChart extends AbstractChart
         $viewport = new Viewport(100, 100, $padTop, $padRight, $padBottom, $padLeft);
 
         $maxLen = $this->seriesCollection->maxLength();
+
         if ($maxLen === 0) {
             return $this->renderEmpty();
         }
@@ -294,6 +313,7 @@ class LineChart extends AbstractChart
         foreach ($this->seriesCollection->items as $i => $series) {
             $ys = $series->axis === Axis::Right && $rightYScale instanceof Scale ? $rightYScale : $leftYScale;
             $this->renderSeries($wrapper, $series, $i, $xScale, $ys, $viewport, $strokeWidth, $timeScale);
+
             if ($series->showTrend) {
                 $this->renderTrend($wrapper, $series, $i, $xScale, $ys, $strokeWidth);
             }
@@ -303,6 +323,7 @@ class LineChart extends AbstractChart
             foreach ($this->buildCrosshairHits($primaryXs, $viewport) as $hit) {
                 $wrapper->add($hit);
             }
+
             $wrapper->enableCrosshair($maxLen);
         }
 
@@ -340,11 +361,13 @@ class LineChart extends AbstractChart
         if ($override instanceof LogScale) {
             return new LogScale($override->domainMin, $override->domainMax, $rangeStart, $rangeEnd, true, $override->base);
         }
+
         if ($override instanceof Scale) {
             return new Scale($override->domainMin, $override->domainMax, $rangeStart, $rangeEnd, true);
         }
 
         [$min, $max] = $this->axisDomain($axis);
+
         if ($min === $max) {
             $min -= 1.0;
             $max += 1.0;
@@ -357,10 +380,12 @@ class LineChart extends AbstractChart
                     . 'minimum value seen is ' . $min . '.',
                 );
             }
+
             return LogScale::log($min, $max, $rangeStart, $rangeEnd, invert: true, base: $logBase);
         }
 
         $padding = ($max - $min) * 0.1;
+
         return Scale::linear($min - $padding, $max + $padding, $rangeStart, $rangeEnd, invert: true);
     }
 
@@ -377,28 +402,35 @@ class LineChart extends AbstractChart
         $min = INF;
         $max = -INF;
         $sawAny = false;
+
         foreach ($this->seriesCollection->items as $series) {
             if ($series->isEmpty()) {
                 continue;
             }
+
             if ($series->axis !== $axis) {
                 continue;
             }
+
             $sawAny = true;
+
             // `boundsMin`/`boundsMax` extend `min`/`max` to include any
             // `Point::$low`/`$high` so the axis fits an error overlay even
             // when the user hasn't toggled `withErrorBars()` yet.
             if ($series->boundsMin < $min) {
                 $min = $series->boundsMin;
             }
+
             if ($series->boundsMax > $max) {
                 $max = $series->boundsMax;
             }
         }
+
         if (!$sawAny) {
             $min = $this->seriesCollection->valueMin();
             $max = $this->seriesCollection->valueMax();
         }
+
         return [$min, $max];
     }
 
@@ -408,6 +440,7 @@ class LineChart extends AbstractChart
     private function collectTimes(): array
     {
         $times = [];
+
         foreach ($this->seriesCollection->items as $series) {
             foreach ($series->points as $point) {
                 if ($point->time !== null) {
@@ -415,15 +448,18 @@ class LineChart extends AbstractChart
                 }
             }
         }
+
         return $times;
     }
 
     private function buildTimeScale(Viewport $viewport): ?TimeScale
     {
         $times = $this->collectTimes();
+
         if ($times === []) {
             return null;
         }
+
         return TimeScale::fromValues(
             $times,
             $viewport->plotLeft(),
@@ -444,23 +480,28 @@ class LineChart extends AbstractChart
     private function buildPrimaryXs(int $maxLen, Scale $xScale, ?TimeScale $timeScale): array
     {
         $primary = null;
+
         if ($timeScale instanceof TimeScale) {
             foreach ($this->seriesCollection->items as $series) {
                 if ($series->isEmpty()) {
                     continue;
                 }
+
                 if ($primary === null || count($series) > count($primary)) {
                     $primary = $series;
                 }
             }
         }
+
         $xs = [];
+
         for ($i = 0; $i < $maxLen; $i++) {
             $time = $primary !== null ? ($primary->points[$i]->time ?? null) : null;
             $xs[] = $time !== null && $timeScale instanceof TimeScale
                 ? $timeScale->mapDate($time)
                 : $xScale->map((float) $i);
         }
+
         return $xs;
     }
 
@@ -471,6 +512,7 @@ class LineChart extends AbstractChart
     {
         $chartId = $this->chartId();
         $entries = [];
+
         foreach ($this->seriesCollection->items as $i => $series) {
             $name = $series->name !== '' ? $series->name : 'Series ' . ($i + 1);
             $entries[] = [
@@ -480,6 +522,7 @@ class LineChart extends AbstractChart
                 'color' => $this->resolveColor($series, $i),
             ];
         }
+
         return $entries;
     }
 
@@ -499,6 +542,7 @@ class LineChart extends AbstractChart
 
         $color = $this->resolveColor($series, $index);
         $points = [];
+
         foreach ($series->values as $i => $v) {
             $time = $series->points[$i]->time ?? null;
             $x = $time !== null && $timeScale instanceof TimeScale
@@ -535,12 +579,14 @@ class LineChart extends AbstractChart
             'stroke-linejoin' => 'round',
             'vector-effect' => 'non-scaling-stroke',
         ];
+
         if ($this->animated) {
             $lineAttrs['class'] = "series-{$index} svgraph-line-path";
             $lineAttrs['pathLength'] = '1';
             $lineAttrs['stroke-dasharray'] = '1';
             $lineAttrs['stroke-dashoffset'] = '1';
         }
+
         $wrapper->add(Tag::void('path', $lineAttrs));
 
         // I-bars sit above the line so the caps are visible against the stroke.
@@ -571,19 +617,25 @@ class LineChart extends AbstractChart
         if (!$series->hasRangeData()) {
             return;
         }
+
         $segments = $this->collectRangeSegments($series, $points, $yScale);
+
         if ($segments === []) {
             return;
         }
 
         $d = '';
+
         foreach ($segments as $segment) {
             $piece = Path::band($segment['low'], $segment['high'], $this->smooth);
+
             if ($piece === '') {
                 continue;
             }
+
             $d .= ($d === '' ? '' : ' ') . $piece;
         }
+
         if ($d === '') {
             return;
         }
@@ -615,14 +667,18 @@ class LineChart extends AbstractChart
         if (!$series->hasRangeData()) {
             return;
         }
+
         $bars = [];
+
         foreach ($series->points as $i => $point) {
             if (!$point->hasRange()) {
                 continue;
             }
+
             if (!isset($points[$i])) {
                 continue;
             }
+
             $x = $points[$i][0];
             $bars[] = [
                 $x,
@@ -630,11 +686,14 @@ class LineChart extends AbstractChart
                 $yScale->map((float) $point->rangeMax()),
             ];
         }
+
         if ($bars === []) {
             return;
         }
+
         $halfCap = max(0.0, $this->theme->errorBarCap) / max(0.01, $this->aspectRatio);
         $d = Path::errorBars($bars, $halfCap);
+
         if ($d === '') {
             return;
         }
@@ -662,22 +721,27 @@ class LineChart extends AbstractChart
         $segments = [];
         $low = [];
         $high = [];
+
         foreach ($series->points as $i => $point) {
             if (!$point->hasRange() || !isset($points[$i])) {
                 if (count($low) >= 2) {
                     $segments[] = ['low' => $low, 'high' => $high];
                 }
+
                 $low = [];
                 $high = [];
                 continue;
             }
+
             $x = $points[$i][0];
             $low[] = [$x, $yScale->map((float) $point->rangeMin())];
             $high[] = [$x, $yScale->map((float) $point->rangeMax())];
         }
+
         if (count($low) >= 2) {
             $segments[] = ['low' => $low, 'high' => $high];
         }
+
         return $segments;
     }
 
@@ -709,18 +773,22 @@ class LineChart extends AbstractChart
             $p = $series->points[$i];
             $id = "{$chartId}-s{$index}-pt-{$i}";
             $tipText = $this->tooltip($this->labelFor($series, $p->label), $p->value);
+
             if ($p->hasRange()) {
                 $tipText .= ' (' . $this->formatNumber((float) $p->rangeMin())
                     . '–' . $this->formatNumber((float) $p->rangeMax()) . ')';
             }
+
             $hasLink = $p->link !== null;
             // Wrap visual marker + transparent hit target in a <g> so that
             // CSS :hover/:focus-within on the group can highlight the visual
             // ellipse even though the (larger) hit target intercepts events.
             $groupAttrs = ['class' => "series-{$index}"];
+
             if ($this->showCrosshair) {
                 $groupAttrs['data-x'] = (string) $i;
             }
+
             $group = Tag::make('g', $groupAttrs);
             $visualAttrs = [
                 'cx' => Tag::formatFloat($x),
@@ -729,9 +797,11 @@ class LineChart extends AbstractChart
                 'ry' => Tag::formatFloat($r),
                 'fill' => $color,
             ];
+
             if ($ghost) {
                 $visualAttrs['opacity'] = '0';
             }
+
             $group->append(Tag::make('ellipse', $visualAttrs)->append(Tag::make('title')->append($tipText)));
             $hitAttrs = [
                 'id' => $hasLink ? null : $id,
@@ -773,6 +843,7 @@ class LineChart extends AbstractChart
         float $strokeWidth,
     ): void {
         $stats = $series->trendStats();
+
         if ($stats === null) {
             return;
         }
@@ -793,6 +864,7 @@ class LineChart extends AbstractChart
             $this->formatNumber($stats['slope']),
             $this->formatNumber($stats['r2']),
         );
+
         if ($series->name !== '') {
             $title = $series->name . ' — ' . $title;
         }
@@ -821,9 +893,11 @@ class LineChart extends AbstractChart
         if ($series->color !== null) {
             return $series->color;
         }
+
         if ($index === 0 && $this->strokeColor !== null) {
             return $this->strokeColor;
         }
+
         return $this->theme->colorAt($index);
     }
 
@@ -836,6 +910,7 @@ class LineChart extends AbstractChart
         if ($series->name === '') {
             return $pointLabel;
         }
+
         return $pointLabel === null || $pointLabel === ''
             ? $series->name
             : "{$series->name} — {$pointLabel}";
@@ -847,6 +922,7 @@ class LineChart extends AbstractChart
     protected function buildGridLines(Scale $yScale, Viewport $viewport): array
     {
         $lines = [];
+
         foreach ($yScale->ticks($this->tickCount) as $tick) {
             $y = $yScale->map($tick);
             $lines[] = Tag::void('line', [
@@ -859,6 +935,7 @@ class LineChart extends AbstractChart
                 'vector-effect' => 'non-scaling-stroke',
             ]);
         }
+
         return $lines;
     }
 
@@ -872,6 +949,7 @@ class LineChart extends AbstractChart
     protected function buildCrosshairLines(array $xs, Viewport $viewport): array
     {
         $lines = [];
+
         foreach ($xs as $i => $x) {
             $lines[] = Tag::void('line', [
                 'class' => 'svgraph-crosshair',
@@ -886,6 +964,7 @@ class LineChart extends AbstractChart
                 'vector-effect' => 'non-scaling-stroke',
             ]);
         }
+
         return $lines;
     }
 
@@ -907,6 +986,7 @@ class LineChart extends AbstractChart
         $count = count($xs);
 
         $rects = [];
+
         foreach ($xs as $i => $x) {
             $colLeft = $i === 0 ? $left : ($xs[$i - 1] + $x) / 2;
             $colRight = $i === $count - 1 ? $right : ($x + $xs[$i + 1]) / 2;
@@ -920,6 +1000,7 @@ class LineChart extends AbstractChart
                 'fill' => 'transparent',
             ]);
         }
+
         return $rects;
     }
 
@@ -949,6 +1030,7 @@ class LineChart extends AbstractChart
                 'vector-effect' => 'non-scaling-stroke',
             ]),
         ];
+
         if ($secondary) {
             $lines[] = Tag::void('line', [
                 'x1' => Tag::formatFloat($viewport->plotRight()),
@@ -960,6 +1042,7 @@ class LineChart extends AbstractChart
                 'vector-effect' => 'non-scaling-stroke',
             ]);
         }
+
         return $lines;
     }
 
@@ -976,6 +1059,7 @@ class LineChart extends AbstractChart
                 return $this->resolveColor($series, $i);
             }
         }
+
         return $this->theme->axisColor;
     }
 
@@ -1000,6 +1084,7 @@ class LineChart extends AbstractChart
 
         if ($rightYScale instanceof Scale) {
             $rightColor = $this->resolveAxisColor(Axis::Right);
+
             foreach ($rightYScale->ticks($this->tickCount) as $tick) {
                 $y = $rightYScale->map($tick);
                 $wrapper->label(new Label(
@@ -1024,6 +1109,7 @@ class LineChart extends AbstractChart
                     verticalAlign: 'bottom',
                 ));
             }
+
             return;
         }
 
@@ -1031,9 +1117,11 @@ class LineChart extends AbstractChart
             if ($label === null) {
                 continue;
             }
+
             if ($label === '') {
                 continue;
             }
+
             $x = $xScale->map((float) $i);
             $wrapper->label(new Label(
                 text: $label,
@@ -1051,6 +1139,7 @@ class LineChart extends AbstractChart
         $wrapper = new Wrapper($viewport, $this->aspectRatio, $this->variantClass, $this->theme);
         $wrapper->setUserClass($this->cssClass);
         $this->applyAccessibility($wrapper);
+
         return $wrapper->render();
     }
 
@@ -1060,6 +1149,7 @@ class LineChart extends AbstractChart
         if ($this->seriesCollection->isEmpty()) {
             return $this->defaultTitle() . ' (no data).';
         }
+
         $count = $this->seriesCollection->count();
         $points = $this->seriesCollection->maxLength();
         $min = $this->formatNumber($this->seriesCollection->valueMin());
@@ -1075,14 +1165,18 @@ class LineChart extends AbstractChart
         );
 
         $trends = [];
+
         foreach ($this->seriesCollection->items as $i => $series) {
             if (!$series->showTrend) {
                 continue;
             }
+
             $stats = $series->trendStats();
+
             if ($stats === null) {
                 continue;
             }
+
             $name = $series->name !== '' ? $series->name : 'Series ' . ($i + 1);
             $trends[] = sprintf(
                 '%s trend: slope %s, R² %s',
@@ -1091,6 +1185,7 @@ class LineChart extends AbstractChart
                 $this->formatNumber($stats['r2']),
             );
         }
+
         return $trends === [] ? $base : $base . ' ' . implode('. ', $trends) . '.';
     }
 
@@ -1102,6 +1197,7 @@ class LineChart extends AbstractChart
         }
 
         $columns = ['Label'];
+
         foreach ($this->seriesCollection->items as $i => $series) {
             $columns[] = $series->name !== '' ? $series->name : 'Series ' . ($i + 1);
         }
@@ -1109,27 +1205,36 @@ class LineChart extends AbstractChart
         $labels = $this->seriesCollection->commonLabels();
         $maxLen = $this->seriesCollection->maxLength();
         $rows = [];
+
         for ($i = 0; $i < $maxLen; $i++) {
             $rowLabel = $labels[$i] ?? null;
+
             if ($rowLabel === null || $rowLabel === '') {
                 $rowLabel = (string) ($i + 1);
             }
+
             $row = [$rowLabel];
+
             foreach ($this->seriesCollection->items as $series) {
                 if (!isset($series->values[$i])) {
                     $row[] = '';
                     continue;
                 }
+
                 $cell = $this->formatNumber($series->values[$i]);
                 $point = $series->points[$i] ?? null;
+
                 if ($point !== null && $point->hasRange()) {
                     $cell .= ' (' . $this->formatNumber((float) $point->rangeMin())
                         . '–' . $this->formatNumber((float) $point->rangeMax()) . ')';
                 }
+
                 $row[] = $cell;
             }
+
             $rows[] = $row;
         }
+
         return ['columns' => $columns, 'rows' => $rows];
     }
 }

@@ -18,6 +18,7 @@ final class ThresholdBandTest extends TestCase
     private function context(?Scale $yScale = null): AnnotationContext
     {
         $viewport = new Viewport(100, 100, 0, 0, 0, 0);
+
         return new AnnotationContext(
             viewport: $viewport,
             theme: Theme::default(),

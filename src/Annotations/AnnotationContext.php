@@ -47,12 +47,15 @@ final readonly class AnnotationContext
         if (!$this->xScale instanceof Scale) {
             return null;
         }
+
         if ($value instanceof DateTimeInterface) {
             if (!$this->xScale instanceof TimeScale) {
                 return null;
             }
+
             return $this->xScale->mapDate($value);
         }
+
         return $this->xScale->map($value);
     }
 
@@ -61,23 +64,28 @@ final readonly class AnnotationContext
         if (!$this->xScale instanceof Scale) {
             return false;
         }
+
         if ($value instanceof DateTimeInterface) {
             if (!$this->xScale instanceof TimeScale) {
                 return false;
             }
+
             $v = (float) $value->format('U.u');
         } else {
             $v = $value;
         }
+
         return $this->between($v, $this->xScale->domainMin, $this->xScale->domainMax);
     }
 
     public function yInDomain(float $value, Axis $axis = Axis::Left): bool
     {
         $scale = $this->yScaleFor($axis);
+
         if (!$scale instanceof Scale) {
             return false;
         }
+
         return $this->between($value, $scale->domainMin, $scale->domainMax);
     }
 
@@ -85,6 +93,7 @@ final readonly class AnnotationContext
     {
         $min = min($a, $b);
         $max = max($a, $b);
+
         return $value >= $min && $value <= $max;
     }
 }

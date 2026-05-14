@@ -251,6 +251,7 @@ final class MultiSeriesTest extends TestCase
         if (preg_match('/<rect [^>]*width="([0-9.]+)"/', $svg, $match) !== 1) {
             self::fail('No rect width found in SVG.');
         }
+
         return (float) $match[1];
     }
 

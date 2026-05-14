@@ -34,11 +34,13 @@ final readonly class SeriesCollection implements \Countable
         if ($this->items === []) {
             return true;
         }
+
         foreach ($this->items as $s) {
             if (!$s->isEmpty()) {
                 return false;
             }
         }
+
         return true;
     }
 
@@ -48,12 +50,15 @@ final readonly class SeriesCollection implements \Countable
     public function maxLength(): int
     {
         $max = 0;
+
         foreach ($this->items as $s) {
             $n = count($s);
+
             if ($n > $max) {
                 $max = $n;
             }
         }
+
         return $max;
     }
 
@@ -63,14 +68,17 @@ final readonly class SeriesCollection implements \Countable
     public function valueMin(): float
     {
         $min = INF;
+
         foreach ($this->items as $s) {
             if ($s->isEmpty()) {
                 continue;
             }
+
             if ($s->min < $min) {
                 $min = $s->min;
             }
         }
+
         return is_finite($min) ? $min : 0.0;
     }
 
@@ -80,14 +88,17 @@ final readonly class SeriesCollection implements \Countable
     public function valueMax(): float
     {
         $max = -INF;
+
         foreach ($this->items as $s) {
             if ($s->isEmpty()) {
                 continue;
             }
+
             if ($s->max > $max) {
                 $max = $s->max;
             }
         }
+
         return is_finite($max) ? $max : 0.0;
     }
 
@@ -99,22 +110,29 @@ final readonly class SeriesCollection implements \Countable
     public function stackedMax(): float
     {
         $length = $this->maxLength();
+
         if ($length === 0) {
             return 0.0;
         }
+
         $max = 0.0;
+
         for ($i = 0; $i < $length; $i++) {
             $sum = 0.0;
+
             foreach ($this->items as $s) {
                 $v = $s->values[$i] ?? 0.0;
+
                 if ($v > 0.0) {
                     $sum += $v;
                 }
             }
+
             if ($sum > $max) {
                 $max = $sum;
             }
         }
+
         return $max;
     }
 
@@ -125,22 +143,29 @@ final readonly class SeriesCollection implements \Countable
     public function stackedMin(): float
     {
         $length = $this->maxLength();
+
         if ($length === 0) {
             return 0.0;
         }
+
         $min = 0.0;
+
         for ($i = 0; $i < $length; $i++) {
             $sum = 0.0;
+
             foreach ($this->items as $s) {
                 $v = $s->values[$i] ?? 0.0;
+
                 if ($v < 0.0) {
                     $sum += $v;
                 }
             }
+
             if ($sum < $min) {
                 $min = $sum;
             }
         }
+
         return $min;
     }
 
@@ -155,16 +180,20 @@ final readonly class SeriesCollection implements \Countable
     {
         $best = [];
         $bestLen = -1;
+
         foreach ($this->items as $s) {
             if (!$s->hasLabels()) {
                 continue;
             }
+
             $len = count($s);
+
             if ($len > $bestLen) {
                 $best = $s->labels();
                 $bestLen = $len;
             }
         }
+
         return $best;
     }
 
@@ -175,6 +204,7 @@ final readonly class SeriesCollection implements \Countable
                 return true;
             }
         }
+
         return false;
     }
 }

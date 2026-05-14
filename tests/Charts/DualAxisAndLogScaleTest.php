@@ -105,6 +105,7 @@ final class DualAxisAndLogScaleTest extends TestCase
     public function test_log_scale_message_names_offending_axis(): void
     {
         $chart = Chart::line([0, 10, 100])->logScale();
+
         try {
             $chart->render();
             self::fail('Expected InvalidArgumentException.');
@@ -145,9 +146,11 @@ final class DualAxisAndLogScaleTest extends TestCase
         // Diffs between consecutive y-coords should be equal (within fp tolerance).
         $diffs = [];
         $counter = count($ys);
+
         for ($i = 1; $i < $counter; $i++) {
             $diffs[] = $ys[$i] - $ys[$i - 1];
         }
+
         self::assertEqualsWithDelta($diffs[0], $diffs[1], 0.01);
         self::assertEqualsWithDelta($diffs[1], $diffs[2], 0.01);
     }
@@ -191,6 +194,7 @@ final class DualAxisAndLogScaleTest extends TestCase
             preg_match_all('/<line [^>]*x2="([0-9.]+)"/', $svg, $matches);
             self::assertNotEmpty($matches[1]);
             $values = array_map(floatval(...), $matches[1]);
+
             return $values === [] ? 0.0 : max($values);
         };
 
@@ -212,8 +216,10 @@ final class DualAxisAndLogScaleTest extends TestCase
 
         // Both paths' y-coords should fit within the plot area (0..100).
         preg_match_all('/<path [^>]*\sd="([^"]+)"/', $svg, $paths);
+
         foreach ($paths[1] as $d) {
             preg_match_all('/[ML]([0-9.\-]+),([0-9.\-]+)/', $d, $coords);
+
             foreach ($coords[2] as $yStr) {
                 $y = (float) $yStr;
                 self::assertGreaterThanOrEqual(0.0, $y);

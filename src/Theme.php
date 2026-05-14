@@ -276,6 +276,7 @@ final readonly class Theme
         if ($this->palette === []) {
             return $this->stroke;
         }
+
         return $this->palette[$index % count($this->palette)];
     }
 }

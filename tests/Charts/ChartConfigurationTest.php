@@ -187,6 +187,7 @@ final class ChartConfigurationTest extends TestCase
             'A' => 1, 'B' => 1, 'C' => 1, 'D' => 1, 'E' => 1, 'F' => 1, 'G' => 1, 'H' => 1,
         ])->legend()->render();
         self::assertStringContainsString('svgraph__labels', $svg);
+
         foreach (['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'] as $label) {
             self::assertStringContainsString($label, $svg);
         }

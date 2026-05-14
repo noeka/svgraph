@@ -17,6 +17,7 @@ final class CalloutTest extends TestCase
     private function context(): AnnotationContext
     {
         $viewport = new Viewport(100, 100, 0, 0, 0, 0);
+
         return new AnnotationContext(
             viewport: $viewport,
             theme: Theme::default(),

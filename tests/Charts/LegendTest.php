@@ -75,6 +75,7 @@ final class LegendTest extends TestCase
             if (preg_match('/id="(svgraph-\d+)-s0"/', $svg, $match) !== 1) {
                 self::fail('No svgraph chart ID found in legend markup.');
             }
+
             return $match[1];
         };
         self::assertNotSame($extractId($a), $extractId($b));

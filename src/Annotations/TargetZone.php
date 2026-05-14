@@ -37,22 +37,27 @@ final class TargetZone extends Annotation
     public function fill(string $color): self
     {
         $this->fillColor = $color;
+
         return $this;
     }
 
     public function label(string $text): self
     {
         $this->labelText = $text;
+
         return $this;
     }
 
     public function render(AnnotationContext $context): string
     {
         $coords = $this->coordinates($context);
+
         if ($coords === null) {
             return '';
         }
+
         $viewport = $context->viewport;
+
         return (string) Tag::void('rect', [
             'class' => 'svgraph-annotation-zone',
             'x' => Tag::formatFloat($coords[0]),
@@ -69,10 +74,13 @@ final class TargetZone extends Annotation
         if ($this->labelText === null || $this->labelText === '') {
             return [];
         }
+
         $coords = $this->coordinates($context);
+
         if ($coords === null) {
             return [];
         }
+
         return [new Label(
             text: $this->labelText,
             left: ($coords[0] + $coords[1]) / 2,
@@ -91,25 +99,32 @@ final class TargetZone extends Annotation
     private function coordinates(AnnotationContext $context): ?array
     {
         $xScale = $context->xScale;
+
         if (!$xScale instanceof Scale) {
             return null;
         }
+
         $fromV = $this->numeric($this->from, $xScale instanceof TimeScale);
         $toV = $this->numeric($this->to, $xScale instanceof TimeScale);
+
         if ($fromV === null || $toV === null) {
             return null;
         }
+
         $domainMin = min($xScale->domainMin, $xScale->domainMax);
         $domainMax = max($xScale->domainMin, $xScale->domainMax);
         $low = min($fromV, $toV);
         $high = max($fromV, $toV);
+
         if ($high < $domainMin || $low > $domainMax) {
             return null;
         }
+
         $low = max($low, $domainMin);
         $high = min($high, $domainMax);
         $xLow = $xScale->map($low);
         $xHigh = $xScale->map($high);
+
         return [min($xLow, $xHigh), max($xLow, $xHigh)];
     }
 
@@ -123,6 +138,7 @@ final class TargetZone extends Annotation
         if ($value instanceof DateTimeInterface) {
             return $isTimeScale ? (float) $value->format('U.u') : null;
         }
+
         return $isTimeScale ? null : $value;
     }
 }

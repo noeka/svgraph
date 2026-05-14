@@ -124,9 +124,11 @@ final class RegressionTest extends TestCase
         // (`slope = Σ(x-x̄)(y-ȳ) / Σ(x-x̄)²`) which is equivalent to NumPy
         // `polyfit(x, y, 1)` and Excel SLOPE/INTERCEPT/RSQ on the same input.
         $points = [];
+
         for ($i = 0; $i < 10; $i++) {
             $points[] = [(float) $i, $i + sin((float) $i)];
         }
+
         $stats = Regression::linear($points);
 
         self::assertEqualsWithDelta(1.012236331886171, $stats['slope'], 1e-9);

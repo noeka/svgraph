@@ -26,15 +26,19 @@ final readonly class Label
     public function render(): string
     {
         $rules = ['position:absolute'];
+
         if ($this->left !== null) {
             $rules[] = 'left:' . Tag::formatFloat($this->left) . '%';
         }
+
         if ($this->right !== null) {
             $rules[] = 'right:' . Tag::formatFloat($this->right) . '%';
         }
+
         if ($this->top !== null) {
             $rules[] = 'top:' . Tag::formatFloat($this->top) . '%';
         }
+
         if ($this->bottom !== null) {
             $rules[] = 'bottom:' . Tag::formatFloat($this->bottom) . '%';
         }
@@ -44,27 +48,34 @@ final readonly class Label
             'end' => '-100%',
             default => '0',
         };
+
         $ty = match ($this->verticalAlign) {
             'middle' => '-50%',
             'top' => '0',
             'bottom' => '-100%',
             default => '0',
         };
+
         if ($tx !== '0' || $ty !== '0') {
             $rules[] = "transform:translate({$tx},{$ty})";
         }
+
         $rules[] = 'white-space:nowrap';
+
         $color = Css::color($this->color);
+
         if ($color !== null) {
             $rules[] = 'color:' . $color;
         }
 
         $span = Tag::make('span', ['style' => implode(';', $rules)]);
+
         if ($this->raw) {
             $span->appendRaw($this->text);
-        } else {
-            $span->append($this->text);
+
+            return (string) $span;
         }
-        return (string) $span;
+
+        return (string) $span->append($this->text);
     }
 }
