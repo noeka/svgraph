@@ -358,8 +358,55 @@ final class DualAxisAndLogScaleTest extends TestCase
             ->secondaryAxis(LogScale::log(1.0, 10_000.0, 0.0, 0.0))
             ->render();
 
-        // Decade labels from 1..10000 on the right side.
-        self::assertStringContainsString('10,000', $svg);
+        // Each decade boundary must appear as its own tick label — only a
+        // log scale produces this set. A linear fallback (e.g. from
+        // `instanceof LogScale` being bypassed) would emit evenly-spaced
+        // ticks like 0/2,500/5,000/7,500/10,000 instead.
+        foreach (['>1<', '>10<', '>100<', '>1,000<', '>10,000<'] as $tick) {
+            self::assertStringContainsString($tick, $svg, "Expected decade tick {$tick}.");
+        }
+    }
+
+    public function test_secondary_axis_linear_override_inverts_y_axis(): void
+    {
+        // The non-LogScale `instanceof Scale` branch constructs a new Scale
+        // with `invert: true`. If that flips to `false`, large values would
+        // render at large y instead of small y. Verify the path for the
+        // right-side series has the maximum at the smallest y.
+        $svg = Chart::line([1, 2, 3])
+            ->addSeries(Series::of('B', [100, 200, 300])->onAxis(Axis::Right))
+            ->axes()
+            ->secondaryAxis(Scale::linear(0.0, 500.0, 0.0, 0.0))
+            ->render();
+
+        // Two paths, series-1 is the right-axis series.
+        preg_match_all('/<path class="series-1"[^>]*\sd="([^"]+)"/', $svg, $m);
+        self::assertNotEmpty($m[1]);
+        preg_match_all('/[ML][0-9.\-]+,([0-9.\-]+)/', $m[1][0], $coords);
+        $ys = array_map(floatval(...), $coords[1]);
+        self::assertCount(3, $ys);
+        // With invert:true, the largest value (300) maps to the smallest y.
+        self::assertLessThan($ys[0], $ys[2]);
+    }
+
+    public function test_constant_series_renders_horizontal_line_at_midpoint(): void
+    {
+        // A series where every value is equal triggers the `$min === $max`
+        // branch in buildYScale, which pads the domain by ±1.0. The
+        // resulting plot must place the line at the vertical mid (y=50 in
+        // the 100x100 viewport without axes).
+        $svg = Chart::line([5, 5, 5])->render();
+        preg_match_all('/class="series-0" d="([^"]+)"/', $svg, $matches);
+        self::assertNotEmpty($matches[1]);
+        preg_match_all('/[ML][0-9.\-]+,([0-9.\-]+)/', $matches[1][0], $coords);
+        $ys = array_map(floatval(...), $coords[1]);
+        self::assertCount(3, $ys);
+
+        // All three y-coords must be exactly 50: any tweak to the ±1.0
+        // expansion (mutants on $min -= 1.0 / $max += 1.0) would shift this.
+        foreach ($ys as $y) {
+            self::assertSame(50.0, $y);
+        }
     }
 
     public function test_axis_color_falls_back_to_theme_when_no_right_series(): void

@@ -176,4 +176,20 @@ final class TimeScaleTest extends TestCase
         self::assertSame('2026-05-01', $scale->start->format('Y-m-d'));
         self::assertSame('2026-05-31', $scale->end->format('Y-m-d'));
     }
+
+    public function test_from_values_handles_unique_max_at_index_zero(): void
+    {
+        // The accumulator initialises both $min and $max to $collected[0]. If
+        // $max is mis-initialised to $collected[1] instead, this case (where
+        // the unique maximum is the first element) silently truncates the
+        // domain to the second-largest value.
+        $values = [
+            new DateTimeImmutable('2026-05-31T00:00:00Z'),
+            new DateTimeImmutable('2026-05-10T00:00:00Z'),
+            new DateTimeImmutable('2026-05-01T00:00:00Z'),
+        ];
+        $scale = TimeScale::fromValues($values, 0.0, 100.0, timezone: 'UTC', useIntl: false);
+        self::assertSame('2026-05-01', $scale->start->format('Y-m-d'));
+        self::assertSame('2026-05-31', $scale->end->format('Y-m-d'));
+    }
 }

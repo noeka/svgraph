@@ -40,7 +40,7 @@
         "rector": "rector --dry-run",
         "rector:fix": "rector",
         "mutate": "infection --threads=max",
-        "check": ["@lint", "@cs", "@test"],
+        "check": ["@lint", "@cs", "@test", "@rector"],
         "docs:images": "php examples/run.php"
     },
     "config": {

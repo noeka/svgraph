@@ -21,9 +21,9 @@ Three rules govern almost every decision:
 
 - PHP 8.3 or newer
 - [Composer](https://getcomposer.org/) 2.x
-- A PHP coverage driver (`pcov` or `xdebug`) — only required for
-  `composer mutate` and the coverage step locally; CI installs `pcov`
-  for coverage but does not run mutation testing.
+- A PHP coverage driver (`pcov` or `xdebug`) — required for the
+  coverage step and for `composer mutate` locally. CI installs `pcov`
+  on every job.
 
 ## Setup
 
@@ -111,18 +111,16 @@ driver — install `pcov` (faster) or `xdebug` first.
 composer mutate
 ```
 
-**Local-only — not run in CI.** Mutation testing is slow (a few
-minutes against the full `src/`) and the project has decided not to
-gate every push on it. Use it locally when changing math/geometry
-code (`src/Geometry/`, `src/Data/Series.php`) or markup-emitting code
-(`src/Svg/Wrapper.php`, `src/Charts/*`) to find assertions that don't
-actually constrain behavior. A surviving mutator is a hint that the
-test suite would not catch a real regression at that line.
+**Gated in CI** (separate job, runs on every push and PR). Thresholds
+live in `infection.json5` (`minMsi`, `minCoveredMsi`); a run that
+drops below them exits non-zero — strengthen assertions before
+opening the PR. Ratchet the thresholds upward in the same PR that
+improves the suite.
 
-Thresholds live in `infection.json5` (`minMsi`, `minCoveredMsi`); a
-local run that drops below them exits non-zero, which is a signal to
-strengthen assertions before opening the PR. Ratchet the thresholds
-upward in the same PR that improves the suite.
+A surviving mutator is a hint that the test suite would not catch a
+real regression at that line. Reach for `composer mutate` locally
+when changing math/geometry code (`src/Geometry/`, `src/Data/Series.php`)
+or markup-emitting code (`src/Svg/Wrapper.php`, `src/Charts/*`).
 
 ### Snapshot assertions
 
@@ -176,8 +174,10 @@ run — it just protects the dev surface.
 
 ## CI
 
-`.github/workflows/ci.yml` runs on push and PR against `main`. The matrix
-covers PHP 8.3, 8.4, 8.5. Each job runs:
+`.github/workflows/ci.yml` runs on push and PR against `main`. Two
+jobs run in parallel:
+
+**`check`** — matrix across PHP 8.3, 8.4, 8.5:
 
 1. `composer install`
 2. `composer lint` — PHPStan
@@ -186,8 +186,12 @@ covers PHP 8.3, 8.4, 8.5. Each job runs:
 5. `vendor/bin/phpunit` with coverage
 6. 90% line-coverage gate
 
-Mutation testing (`composer mutate`) and image regeneration
-(`composer docs:images`) are **not** in CI — both are local-only.
+**`mutation`** — Infection on PHP 8.3, gated on the thresholds in
+`infection.json5`. Slower than the matrix job (~3–5 minutes); fails
+the build if MSI drops.
+
+Image regeneration (`composer docs:images`) is **not** in CI — run
+locally and commit the regenerated SVGs alongside the code change.
 
 ## Regenerating example images
 

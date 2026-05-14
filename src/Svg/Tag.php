@@ -102,7 +102,15 @@ final class Tag implements \Stringable
         $out = '';
 
         foreach ($attributes as $key => $value) {
-            if ($value === null || $value === false || ! $this->isValidAttrName($key)) {
+            if ($value === null) {
+                continue;
+            }
+
+            if ($value === false) {
+                continue;
+            }
+
+            if (! $this->isValidAttrName($key)) {
                 continue;
             }
 

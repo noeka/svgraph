@@ -20,7 +20,7 @@ composer cs                 # PHP-CS-Fixer check
 composer cs:fix             # PHP-CS-Fixer apply
 composer rector             # Rector dry-run (fails CI if any rule would change a file)
 composer rector:fix         # Rector apply
-composer mutate             # Infection mutation testing — local only, requires pcov/xdebug
+composer mutate             # Infection mutation testing — requires pcov/xdebug
 composer docs:images        # Regenerate docs/images/*.svg from examples/
 
 # Run a single test class:
@@ -30,7 +30,7 @@ vendor/bin/phpunit tests/Charts/ChartRenderingTest.php
 vendor/bin/phpunit --coverage-html build/coverage
 ```
 
-CI runs steps 1–5 of `composer check` plus coverage on PHP 8.3, 8.4, 8.5. Mutation testing and `docs:images` are **not** in CI.
+CI runs two parallel jobs: a matrix job over PHP 8.3, 8.4, 8.5 (steps 1–5 of `composer check` plus the 90% line-coverage gate) and a mutation job on PHP 8.3 that gates on the MSI thresholds in `infection.json5`. `docs:images` is **not** in CI.
 
 ## Architecture
 
@@ -78,7 +78,7 @@ Tests under `tests/` mirror the `src/` namespace layout. Three styles:
 
 1. **`assertStringContainsString` / regex** for narrow per-attribute or per-fragment checks (most of `tests/Charts/`).
 2. **Snapshot assertions** (`spatie/phpunit-snapshot-assertions`) for whole-SVG shape — see `tests/Snapshots/ChartSnapshotTest.php` and `tests/Snapshots/__snapshots__/`. Snapshots are the contract for downstream output: review diffs as carefully as code. Delete a `.txt` snapshot to regenerate it on next run. **Always reset `AbstractChart::$nextId`** in `setUp()` for any snapshot test.
-3. **Mutation testing** (`composer mutate`, local only) — run when changing `src/Geometry/`, `src/Data/Series.php`, `src/Svg/Wrapper.php`, or any chart class. Surviving mutators flag assertions that don't actually constrain behavior; strengthen those tests rather than ratcheting thresholds down.
+3. **Mutation testing** (`composer mutate`, also gated in CI) — run locally when changing `src/Geometry/`, `src/Data/Series.php`, `src/Svg/Wrapper.php`, or any chart class. Surviving mutators flag assertions that don't actually constrain behavior; strengthen those tests rather than ratcheting `infection.json5` thresholds down.
 
 Reach for snapshots when testing the shape of the whole SVG. Use `assertStringContainsString` for narrow attribute checks where surrounding markup is incidental.
 

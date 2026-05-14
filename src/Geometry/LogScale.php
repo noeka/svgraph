@@ -106,7 +106,11 @@ final readonly class LogScale extends Scale
         for ($p = $low; $p <= $high; $p++) {
             $v = $this->base ** $p;
 
-            if ($v < $this->domainMin || $v > $this->domainMax) {
+            if ($v < $this->domainMin) {
+                continue;
+            }
+
+            if ($v > $this->domainMax) {
                 continue;
             }
 

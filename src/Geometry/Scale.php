@@ -81,7 +81,11 @@ readonly class Scale
         $ticks = [];
 
         for ($v = $start; $v <= $end + $step / 2; $v += $step) {
-            if ($v < $this->domainMin - $step / 2 || $v > $this->domainMax + $step / 2) {
+            if ($v < $this->domainMin - $step / 2) {
+                continue;
+            }
+
+            if ($v > $this->domainMax + $step / 2) {
                 continue;
             }
 

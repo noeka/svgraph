@@ -759,7 +759,11 @@ class BarChart extends AbstractChart
         $labels = [];
 
         foreach ($this->seriesCollection->commonLabels() as $i => $label) {
-            if ($label === null || $label === '') {
+            if ($label === null) {
+                continue;
+            }
+
+            if ($label === '') {
                 continue;
             }
 

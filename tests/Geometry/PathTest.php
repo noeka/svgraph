@@ -61,6 +61,22 @@ final class PathTest extends TestCase
         self::assertStringEndsWith('Z', $d);
     }
 
+    public function test_area_defaults_to_straight_segments(): void
+    {
+        // The third argument $smooth defaults to false; if it flipped to true,
+        // the result would contain cubic Bezier segments (`C` commands).
+        $d = Path::area([[0.0, 50.0], [50.0, 20.0], [100.0, 50.0]], 100.0);
+        self::assertStringNotContainsString('C', $d);
+        self::assertStringContainsString('L50,20', $d);
+    }
+
+    public function test_area_smooth_opt_in_produces_cubic_bezier(): void
+    {
+        // Sanity check that the alternate branch still works.
+        $d = Path::area([[0.0, 50.0], [50.0, 20.0], [100.0, 50.0]], 100.0, smooth: true);
+        self::assertStringContainsString('C', $d);
+    }
+
     public function test_arc_pie_wedge_starts_at_center(): void
     {
         $d = Path::arc(50.0, 50.0, 40.0, 0.0, 0.0, M_PI / 2);
@@ -83,6 +99,20 @@ final class PathTest extends TestCase
         $d = Path::arc(50.0, 50.0, 40.0, 0.0, 0.0, 2 * M_PI);
         self::assertNotSame('', $d);
         self::assertGreaterThan(1, substr_count($d, 'A'));
+        // The fullRing form starts at the 12 o'clock point on the outer circle,
+        // not at the wedge centre — `M50,50` would mean the regular wedge path
+        // was emitted instead. Guards against the full-circle threshold being
+        // mutated below `2 * M_PI`.
+        self::assertStringNotContainsString('M50,50', $d);
+    }
+
+    public function test_arc_exact_half_circle_emits_regular_wedge(): void
+    {
+        // Sweep of exactly M_PI must not trigger the full-circle fast path:
+        // the regular wedge form starts at the centre and contains a single A.
+        $d = Path::arc(50.0, 50.0, 40.0, 0.0, 0.0, M_PI);
+        self::assertStringStartsWith('M50,50', $d);
+        self::assertSame(1, substr_count($d, 'A40,40'));
     }
 
     public function test_arc_full_donut_ring_includes_inner_circle(): void

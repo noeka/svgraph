@@ -10,7 +10,9 @@ use Noeka\Svgraph\Charts\LineChart;
 use Noeka\Svgraph\Charts\PieChart;
 use Noeka\Svgraph\Charts\ProgressChart;
 use Noeka\Svgraph\Theme;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
+use ReflectionMethod;
 
 final class ChartConfigurationTest extends TestCase
 {
@@ -75,6 +77,25 @@ final class ChartConfigurationTest extends TestCase
     {
         $svg = Chart::line([1, 2, 3])->axes()->render();
         self::assertSame(2, substr_count($svg, '<line '));
+    }
+
+    public function test_line_grid_only_pads_same_as_axes_only(): void
+    {
+        // Padding for top/right/bottom/left is gated on `showAxes || showGrid`;
+        // flipping any of those to `&&` would zero the padding when only one is set.
+        // Both renders must place the data path inside the padded plot rect
+        // (x in [12, 98], y in [~10.83, ~79.17] given padTop=4, padBottom=14).
+        $gridOnly = Chart::line(['A' => 1, 'B' => 2, 'C' => 3])->grid()->render();
+        $axesOnly = Chart::line(['A' => 1, 'B' => 2, 'C' => 3])->axes()->render();
+
+        $extractPath = static function (string $svg): string {
+            preg_match('/class="series-0" d="([^"]+)"/', $svg, $m);
+
+            return $m[1] ?? '';
+        };
+        $expectedPath = 'M12,79.1667 L55,45 L98,10.8333';
+        self::assertSame($expectedPath, $extractPath($gridOnly));
+        self::assertSame($expectedPath, $extractPath($axesOnly));
     }
 
     public function test_bar_color_setter_applies_uniform_fill(): void
@@ -153,6 +174,21 @@ final class ChartConfigurationTest extends TestCase
     {
         $svg = Chart::pie(['Only' => 100])->render();
         self::assertStringContainsString('<circle', $svg);
+    }
+
+    public function test_pie_single_slice_tooltip_anchored_at_circle_top(): void
+    {
+        // Single-slice, no-legend pie: cx=50, cy=50, r=48 in the 100x100 viewport.
+        // Tooltip anchor is the top of the circle: left=cx, top=cy-r.
+        $svg = Chart::pie(['Only' => 100])->render();
+        self::assertStringContainsString('left:50%;top:2%;', $svg);
+    }
+
+    public function test_pie_single_slice_with_legend_tooltip_anchor_shifts(): void
+    {
+        // With a legend, cy=42 and r=38 so the circle top moves to (50, 4).
+        $svg = Chart::pie(['Only' => 100])->legend()->render();
+        self::assertStringContainsString('left:50%;top:4%;', $svg);
     }
 
     public function test_pie_single_slice_with_legend(): void
@@ -244,6 +280,38 @@ final class ChartConfigurationTest extends TestCase
         // Drives AbstractChart::formatNumber's decimal branch (with trim).
         $svg = Chart::bar(['A' => 0.25, 'B' => 0.75])->axes()->ticks(4)->render();
         self::assertMatchesRegularExpression('/0\.\d/', $svg);
+    }
+
+    #[DataProvider('formatNumberMatrix')]
+    public function test_format_number_matrix(float $value, string $expected): void
+    {
+        $method = new ReflectionMethod(LineChart::class, 'formatNumber');
+        self::assertSame($expected, $method->invoke(new LineChart(), $value));
+    }
+
+    /**
+     * @return list<array{0: float, 1: string}>
+     */
+    public static function formatNumberMatrix(): array
+    {
+        return [
+            // >=1000 branch: thousand separator, no decimals (rounds half-up).
+            [12345.0, '12,345'],
+            [1500.7, '1,501'],
+            [-12345.0, '-12,345'],
+            // Integer-valued floats below the threshold: bare int form.
+            [3.0, '3'],
+            [0.0, '0'],
+            [-7.0, '-7'],
+            // Non-integer floats below the threshold: 2 decimals, trailing zeros trimmed.
+            [3.5, '3.5'],
+            [3.05, '3.05'],
+            // Third decimal must round (kills `, 2,` -> `, 3,`).
+            [3.456, '3.46'],
+            // Rounds down to zero — exercises the dangling-dot trim ("0." -> "0").
+            [0.001, '0'],
+            [-3.5, '-3.5'],
+        ];
     }
 
     public function test_theme_with_invalid_text_color_falls_back(): void

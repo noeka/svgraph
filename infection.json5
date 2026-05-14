@@ -12,8 +12,8 @@
         "summary": "build/infection/summary.log"
     },
     "tmpDir": "build/infection",
-    "minMsi": 47,
-    "minCoveredMsi": 48,
+    "minMsi": 77,
+    "minCoveredMsi": 78,
     "mutators": {
         "@default": true
     }

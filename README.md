@@ -1,5 +1,7 @@
 # svgraph
 
+[![CI](https://github.com/noeka/svgraph/actions/workflows/ci.yml/badge.svg)](https://github.com/noeka/svgraph/actions/workflows/ci.yml)
+
 JavaScript-free SVG chart rendering for PHP. Sparkline, line/area, bar,
 pie/donut, and progress charts as static markup — no canvas, no JS, no
 build step.

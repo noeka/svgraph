@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace Noeka\Svgraph\Tests\Charts;
 
+use DateTimeImmutable;
 use Noeka\Svgraph\Annotations\Callout;
 use Noeka\Svgraph\Annotations\ReferenceLine;
 use Noeka\Svgraph\Annotations\TargetZone;
 use Noeka\Svgraph\Annotations\ThresholdBand;
 use Noeka\Svgraph\Chart;
+use Noeka\Svgraph\Charts\LineChart;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -143,5 +145,33 @@ final class AnnotationsIntegrationTest extends TestCase
             ->render();
 
         self::assertSame(2, substr_count($svg, 'svgraph-annotation-ref'));
+    }
+
+    public function test_time_axis_reference_line_maps_via_time_scale(): void
+    {
+        // When a line chart has both a time axis and a fallback index xScale,
+        // the AnnotationContext must receive the TimeScale (so DateTime-valued
+        // references can be mapped). If LineChart's `$timeScale ?? $xScale`
+        // flips to `$xScale ?? $timeScale`, mapX returns null for a DateTime
+        // value and the annotation disappears entirely.
+        $t0 = new DateTimeImmutable('2026-05-01T00:00:00Z');
+        $tMid = new DateTimeImmutable('2026-05-15T00:00:00Z');
+        $t1 = new DateTimeImmutable('2026-05-30T00:00:00Z');
+
+        $svg = (new LineChart())
+            ->series([[$t0, 1], [$tMid, 5], [$t1, 9]])
+            ->timeAxis()
+            ->annotate(ReferenceLine::x($tMid))
+            ->render();
+
+        // The annotation must be present...
+        self::assertStringContainsString('svgraph-annotation-ref', $svg);
+        // ...and at the TimeScale-mapped x for May 15 (14/29 of the way from
+        // x=0 to x=100, since no axes/grid means no padding). The exact
+        // value isn't 50 because May has 31 days and our range is 30 wide.
+        self::assertMatchesRegularExpression(
+            '/svgraph-annotation-ref[^>]*x1="48\.\d+"/',
+            $svg,
+        );
     }
 }
