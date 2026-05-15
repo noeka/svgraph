@@ -655,10 +655,13 @@ final class Wrapper
 
     private function buildBarAnimationStyle(string $durationVar, string $easingVar): string
     {
+        // Rounded bars render as <path>; flat bars as <rect>. The animation
+        // applies to both shapes.
         if ($this->secondaryVariant === 'bar-h') {
             // Horizontal bars grow from left (positive) or right (negative).
             return '@keyframes svgraph-grow-hbar{from{transform:scaleX(0)}to{transform:scaleX(1)}}'
-                . '.svgraph--bar.svgraph--bar-h rect[class^="series-"]{'
+                . '.svgraph--bar.svgraph--bar-h rect[class^="series-"],'
+                . '.svgraph--bar.svgraph--bar-h path[class^="series-"]{'
                 . 'transform-box:fill-box;'
                 . 'transform-origin:var(--svgraph-bar-tfo,left center);'
                 . 'animation:svgraph-grow-hbar ' . $durationVar . ' ' . $easingVar . ' both;'
@@ -667,7 +670,8 @@ final class Wrapper
 
         // Vertical bars grow from bottom (positive) or top (negative).
         return '@keyframes svgraph-grow-vbar{from{transform:scaleY(0)}to{transform:scaleY(1)}}'
-            . '.svgraph--bar:not(.svgraph--bar-h) rect[class^="series-"]{'
+            . '.svgraph--bar:not(.svgraph--bar-h) rect[class^="series-"],'
+            . '.svgraph--bar:not(.svgraph--bar-h) path[class^="series-"]{'
             . 'transform-box:fill-box;'
             . 'transform-origin:var(--svgraph-bar-tfo,center bottom);'
             . 'animation:svgraph-grow-vbar ' . $durationVar . ' ' . $easingVar . ' both;'

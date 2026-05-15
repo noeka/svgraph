@@ -95,12 +95,22 @@ final class ChartRenderingTest extends TestCase
         self::assertSame(3, substr_count($svg, '<rect '));
     }
 
-    public function test_bar_rounded_sets_corner_radius(): void
+    public function test_bar_rounded_emits_path_with_aspect_corrected_arc(): void
     {
+        // Rounded bars switch from <rect> to <path> so we can selectively
+        // round just the top edge. The arc's `ry` is scaled by the chart's
+        // aspect ratio (default 2.0) so the corner renders as a circle —
+        // not an ellipse — after `preserveAspectRatio="none"` stretching.
         $svg = Chart::bar(['Jan' => 10, 'Feb' => 20])->rounded(2.5)->render();
 
-        self::assertStringContainsString('rx="2.5"', $svg);
-        self::assertStringContainsString('ry="2.5"', $svg);
+        self::assertStringNotContainsString('<rect class="series-0"', $svg);
+        self::assertMatchesRegularExpression('/<path class="series-0"[^>]* d="[^"]*A2\.5,5 /', $svg);
+        // Top-only rounding: path starts at the bottom-left, lifts to the
+        // top-left arc, traverses the top, drops back down the right side.
+        // There must be exactly two arc commands (the two top corners).
+        preg_match_all('/<path class="series-0"[^>]* d="([^"]+)"/', $svg, $m);
+        self::assertCount(2, $m[1]);
+        self::assertSame(2, substr_count($m[1][0], 'A'));
     }
 
     public function test_bar_rainbow_uses_palette(): void
@@ -120,6 +130,52 @@ final class ChartRenderingTest extends TestCase
         $svg = Chart::bar(['A' => 5, 'B' => -3, 'C' => 7])->render();
 
         self::assertSame(3, substr_count($svg, '<rect '));
+    }
+
+    public function test_bar_rounded_negative_value_rounds_bottom_edge(): void
+    {
+        // Negative bars hang below the baseline; their open end is the
+        // bottom, so the bottom corners get rounded instead of the top.
+        $svg = Chart::bar(['A' => 5, 'B' => -3])->rounded(1)->render();
+
+        // Both bars render as paths (both have non-zero values).
+        preg_match_all('/<path class="series-0"[^>]* d="([^"]+)"/', $svg, $paths);
+        self::assertCount(2, $paths[1], 'expected both bars to be paths');
+
+        // The positive bar's path opens at the bottom-left corner (sharp);
+        // the negative bar's path opens at the top-left corner (sharp).
+        // Distinguish by where the arcs sit: positive bar's arcs are near
+        // the smaller y values, negative bar's arcs are near the larger.
+        preg_match_all('/A1,2 0 0 1 ([\d.]+),([\d.]+)/', $paths[1][0], $posArcs);
+        preg_match_all('/A1,2 0 0 1 ([\d.]+),([\d.]+)/', $paths[1][1], $negArcs);
+        self::assertCount(2, $posArcs[2]);
+        self::assertCount(2, $negArcs[2]);
+        // Mean Y of arc endpoints: positive bar's arcs sit above (lower y)
+        // its negative neighbour's arcs (higher y).
+        $posMean = (((float) $posArcs[2][0]) + ((float) $posArcs[2][1])) / 2;
+        $negMean = (((float) $negArcs[2][0]) + ((float) $negArcs[2][1])) / 2;
+        self::assertLessThan($negMean, $posMean);
+    }
+
+    public function test_bar_stacked_rounds_only_outermost_segment(): void
+    {
+        // Stacked bars: only the topmost positive segment in each slot
+        // gets a rounded top. Middle segments stay flat (rendered as
+        // <rect>) so the joints between stacked segments are seamless.
+        $svg = Chart::bar(['Q1' => 10])
+            ->addSeries(Series::of('mid', ['Q1' => 5]))
+            ->addSeries(Series::of('top', ['Q1' => 3]))
+            ->stacked()
+            ->rounded(1)
+            ->render();
+
+        // Bottom (series-0) and middle (series-1) segments are flat rects;
+        // only the topmost segment (series-2) is a rounded path.
+        self::assertStringContainsString('<rect class="series-0"', $svg);
+        self::assertStringContainsString('<rect class="series-1"', $svg);
+        self::assertStringContainsString('<path class="series-2"', $svg);
+        self::assertStringNotContainsString('<path class="series-0"', $svg);
+        self::assertStringNotContainsString('<path class="series-1"', $svg);
     }
 
     public function test_horizontal_bar_chart_emits_labels(): void
