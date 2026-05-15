@@ -7,6 +7,7 @@ namespace Noeka\Svgraph\Tests\Geometry;
 use DateTimeImmutable;
 use DateTimeZone;
 use Noeka\Svgraph\Geometry\TimeScale;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 final class TimeScaleTest extends TestCase
@@ -175,6 +176,79 @@ final class TimeScaleTest extends TestCase
         $scale = TimeScale::fromValues($values, 0.0, 100.0, timezone: 'UTC', useIntl: false);
         self::assertSame('2026-05-01', $scale->start->format('Y-m-d'));
         self::assertSame('2026-05-31', $scale->end->format('Y-m-d'));
+    }
+
+    /**
+     * Every row exercises one bucket from the table in TimeScale::buckets().
+     * For each, the range is chosen so `pickBucket` picks that bucket exactly,
+     * and we assert (a) the time between consecutive ticks, (b) the format
+     * string used. Any IncrementInteger/DecrementInteger on a bucket's
+     * step/sec constant, or a swap in the snapDown/advance match arms,
+     * shifts the delta or the format and fails the row.
+     */
+    #[DataProvider('bucketMatrix')]
+    public function test_bucket_selection(
+        string $startIso,
+        string $endIso,
+        string $advance,
+        string $expectedFirstFormatted,
+    ): void {
+        $tz = new DateTimeZone('UTC');
+        $start = new DateTimeImmutable($startIso, $tz);
+        $end = new DateTimeImmutable($endIso, $tz);
+        $scale = new TimeScale($start, $end, 0.0, 100.0, timezone: $tz, useIntl: false);
+
+        $ticks = $scale->timeTicks(5);
+        self::assertGreaterThanOrEqual(2, count($ticks), 'Expected at least two ticks.');
+
+        // The second tick must equal the first advanced by the bucket's step.
+        $expectedSecond = $ticks[0]->modify($advance);
+        self::assertSame(
+            $expectedSecond->getTimestamp(),
+            $ticks[1]->getTimestamp(),
+            "Bucket step mismatch (expected {$advance} between ticks).",
+        );
+
+        // The PHP-format output of the first tick locks down the bucket's
+        // format string and (for sub-day buckets) the snap behaviour.
+        self::assertSame($expectedFirstFormatted, $scale->formatTick($ticks[0], 5));
+    }
+
+    /**
+     * @return array<string, array{0: string, 1: string, 2: string, 3: string}>
+     */
+    public static function bucketMatrix(): array
+    {
+        return [
+            // sub-minute → format H:i:s.
+            'sec/1'    => ['2026-05-01T00:00:00', '2026-05-01T00:00:04', '+1 seconds',  '00:00:00'],
+            'sec/5'    => ['2026-05-01T00:00:00', '2026-05-01T00:00:20', '+5 seconds',  '00:00:00'],
+            'sec/15'   => ['2026-05-01T00:00:00', '2026-05-01T00:01:00', '+15 seconds', '00:00:00'],
+            'sec/30'   => ['2026-05-01T00:00:00', '2026-05-01T00:02:00', '+30 seconds', '00:00:00'],
+            // minute & hour → format H:i.
+            'min/1'    => ['2026-05-01T00:00:00', '2026-05-01T00:04:00', '+1 minutes',  '00:00'],
+            'min/5'    => ['2026-05-01T00:00:00', '2026-05-01T00:20:00', '+5 minutes',  '00:00'],
+            'min/15'   => ['2026-05-01T00:00:00', '2026-05-01T01:00:00', '+15 minutes', '00:00'],
+            'min/30'   => ['2026-05-01T00:00:00', '2026-05-01T02:00:00', '+30 minutes', '00:00'],
+            'hour/1'   => ['2026-05-01T00:00:00', '2026-05-01T04:00:00', '+1 hours',    '00:00'],
+            'hour/3'   => ['2026-05-01T00:00:00', '2026-05-01T12:00:00', '+3 hours',    '00:00'],
+            // 6h/12h drop into the M j H:i format (date prefix).
+            'hour/6'   => ['2026-05-01T00:00:00', '2026-05-02T00:00:00', '+6 hours',    'May 1 00:00'],
+            'hour/12'  => ['2026-05-01T00:00:00', '2026-05-03T00:00:00', '+12 hours',   'May 1 00:00'],
+            // Day → "M j".
+            'day/1'    => ['2026-05-01T00:00:00', '2026-05-05T00:00:00', '+1 days',     'May 1'],
+            'day/2'    => ['2026-05-01T00:00:00', '2026-05-09T00:00:00', '+2 days',     'May 1'],
+            'day/7'    => ['2026-05-01T00:00:00', '2026-05-29T00:00:00', '+7 days',     'May 1'],
+            // Month → "M Y".
+            'month/1'  => ['2026-01-01T00:00:00', '2026-05-01T00:00:00', '+1 months',   'Jan 2026'],
+            'month/3'  => ['2026-01-01T00:00:00', '2027-01-01T00:00:00', '+3 months',   'Jan 2026'],
+            'month/6'  => ['2026-01-01T00:00:00', '2028-01-01T00:00:00', '+6 months',   'Jan 2026'],
+            // Year → "Y".
+            'year/1'   => ['2026-01-01T00:00:00', '2030-01-01T00:00:00', '+1 years',    '2026'],
+            'year/2'   => ['2026-01-01T00:00:00', '2034-01-01T00:00:00', '+2 years',    '2026'],
+            'year/5'   => ['2020-01-01T00:00:00', '2040-01-01T00:00:00', '+5 years',    '2020'],
+            'year/10'  => ['2000-01-01T00:00:00', '2040-01-01T00:00:00', '+10 years',   '2000'],
+        ];
     }
 
     public function test_from_values_handles_unique_max_at_index_zero(): void

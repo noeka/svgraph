@@ -9,6 +9,7 @@ use Noeka\Svgraph\Charts\BarChart;
 use Noeka\Svgraph\Charts\LineChart;
 use Noeka\Svgraph\Charts\PieChart;
 use Noeka\Svgraph\Charts\ProgressChart;
+use Noeka\Svgraph\Data\Series;
 use Noeka\Svgraph\Theme;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
@@ -156,6 +157,118 @@ final class ChartConfigurationTest extends TestCase
         self::assertStringContainsString('<line', $svg);
     }
 
+    public function test_horizontal_bar_widths_scale_linearly_from_left_edge(): void
+    {
+        // For a horizontal bar [10, 20, 30] over the default 100x100 viewport
+        // with no axes/grid (padLeft=2, padRight=2 → plot width=96):
+        //   widths = 96 * value / 30 → 32, 64, 96.
+        // All bars start at x=2 (the left padding edge).
+        $svg = Chart::bar([10, 20, 30])->horizontal()->render();
+        preg_match_all('/<rect [^>]*x="([^"]+)"[^>]*width="([^"]+)"/', $svg, $m);
+        self::assertSame(['2', '2', '2'], $m[1]);
+        self::assertSame(['32', '64', '96'], $m[2]);
+    }
+
+    public function test_horizontal_grouped_bar_offsets_series_within_each_row(): void
+    {
+        // Two series, two columns → grouped layout: each slot's bars stack
+        // vertically by series index. Each bar height = group height / 2,
+        // so series-1's y must equal series-0's y + barHeight.
+        $svg = Chart::bar(['A' => 10, 'B' => 20])->horizontal()
+            ->addSeries(Series::from([5, 30]))
+            ->render();
+        preg_match_all('/<rect class="series-([01])"[^>]*y="([^"]+)"[^>]*height="([^"]+)"/', $svg, $m);
+        // Expect 4 bars total. Series 0: rows 0/1, series 1: rows 0/1, in series order.
+        self::assertCount(4, $m[1]);
+        // With labels the plot area is padded; the per-row slot height is
+        // therefore the consistent delta between series-0's two y-values.
+        $s0Y0 = (float) $m[2][0];
+        $s0Y1 = (float) $m[2][1];
+        $slotHeight = $s0Y1 - $s0Y0;
+        self::assertGreaterThan(0.0, $slotHeight);
+        // Series 1's first bar sits immediately below series 0's first bar.
+        $barHeight = (float) $m[3][0];
+        self::assertEqualsWithDelta($s0Y0 + $barHeight, (float) $m[2][2], 0.0001);
+    }
+
+    public function test_horizontal_stacked_bar_anchors_negative_to_left_of_zero(): void
+    {
+        // Stacked horizontal with one positive and one negative series:
+        // series-0 (positive 10) extends from x(0) to x(10);
+        // series-1 (negative -5) extends from x(-5) to x(0).
+        // Without axes/grid, domain spans [-5, 10], plot is [2, 98].
+        $svg = Chart::bar([10])->stacked()->horizontal()
+            ->addSeries(Series::from([-5]))
+            ->render();
+        preg_match_all('/<rect class="series-([01])"[^>]*x="([^"]+)"[^>]*width="([^"]+)"/', $svg, $m);
+        self::assertSame(['0', '1'], $m[1]);
+        // Negative bar (series-1) sits left of the positive (series-0).
+        self::assertLessThan((float) $m[2][0], (float) $m[2][1]);
+        // x(positive) = x(negative) + width(negative) — they touch at zero.
+        self::assertEqualsWithDelta(
+            (float) $m[2][1] + (float) $m[3][1],
+            (float) $m[2][0],
+            0.0001,
+        );
+    }
+
+    public function test_line_default_description_empty_uses_no_data_phrase(): void
+    {
+        $svg = Chart::line([])->render();
+        self::assertStringContainsString('Line chart (no data).', $svg);
+    }
+
+    public function test_line_default_description_includes_range_and_point_count(): void
+    {
+        $svg = Chart::line([1, 2, 3])->render();
+        self::assertStringContainsString('Line chart with 1 series of 3 points. Range: 1 to 3.', $svg);
+    }
+
+    public function test_line_default_description_singular_for_one_point(): void
+    {
+        $svg = Chart::line([42])->render();
+        self::assertStringContainsString('Line chart with 1 series of 1 point. Range: 42 to 42.', $svg);
+    }
+
+    public function test_line_trend_description_uses_series_n_fallback(): void
+    {
+        // When a series has no name and a trend is requested, the
+        // description must call it "Series N" with N=index+1.
+        $svg = Chart::line([1, 2, 3])
+            ->addSeries(Series::from([4, 5, 6])->withTrendLine(true))
+            ->render();
+        self::assertStringContainsString('Series 2 trend: slope 1, R² 1', $svg);
+    }
+
+    public function test_line_log_scale_error_message_names_axis_and_value(): void
+    {
+        $chart = Chart::line([-2, 10])->logScale();
+
+        try {
+            $chart->render();
+            self::fail('Expected InvalidArgumentException.');
+        } catch (\InvalidArgumentException $e) {
+            self::assertSame(
+                'Log scale on the left Y axis requires strictly positive data; '
+                . 'minimum value seen is -2.',
+                $e->getMessage(),
+            );
+        }
+    }
+
+    public function test_bar_legend_uses_series_n_fallback_when_name_missing(): void
+    {
+        // Multi-series bar where neither series has a name. The legend must
+        // fall back to "Series 1", "Series 2" (1-indexed). Mutations to the
+        // `$i + 1` increment or the "Series " concat would break this.
+        $svg = Chart::bar([1, 2, 3])
+            ->addSeries(Series::from([4, 5, 6]))
+            ->legend()
+            ->render();
+        self::assertStringContainsString('Series 1', $svg);
+        self::assertStringContainsString('Series 2', $svg);
+    }
+
     public function test_pie_empty_renders_wrapper_only(): void
     {
         $svg = Chart::pie([])->render();
@@ -197,6 +310,84 @@ final class ChartConfigurationTest extends TestCase
         self::assertStringContainsString('<circle', $svg);
         self::assertStringContainsString('svgraph__labels', $svg);
         self::assertStringContainsString('Only', $svg);
+    }
+
+    public function test_pie_two_equal_slices_tooltips_anchored_at_3_and_9_oclock(): void
+    {
+        // Default startAngle=0 means the first slice starts at the 12 o'clock
+        // ray. Two equal slices of sweep π each mid at 3 o'clock and 9 o'clock.
+        // tipRadius = outerRadius * 0.6 = 48 * 0.6 = 28.8.
+        $svg = Chart::pie(['A' => 1, 'B' => 1])->render();
+        self::assertStringContainsString('left:78.8%;top:50%;', $svg);
+        self::assertStringContainsString('left:21.2%;top:50%;', $svg);
+    }
+
+    public function test_donut_two_equal_slices_tooltip_radius_is_ring_midpoint(): void
+    {
+        // For donuts: tipRadius = (outerRadius + innerRadius) / 2.
+        // thickness=0.5 → innerR=24, outerR=48 → tipRadius=36.
+        // Two equal slices → tooltips at (50±36, 50).
+        $svg = Chart::donut(['A' => 1, 'B' => 1])->thickness(0.5)->render();
+        self::assertStringContainsString('left:86%;top:50%;', $svg);
+        self::assertStringContainsString('left:14%;top:50%;', $svg);
+    }
+
+    public function test_pie_start_angle_rotates_tooltip_anchors(): void
+    {
+        // startAngle=90 (degrees) rotates the chart a quarter-turn clockwise:
+        // slice 0 mid moves from 3 o'clock to 6 o'clock, slice 1 from 9 to 12.
+        $svg = Chart::pie(['A' => 1, 'B' => 1])->startAngle(90)->render();
+        self::assertStringContainsString('left:50%;top:78.8%;', $svg);
+        self::assertStringContainsString('left:50%;top:21.2%;', $svg);
+    }
+
+    public function test_animated_single_slice_tooltip_matches_static(): void
+    {
+        // The animated single-slice fast-path uses the same anchor as the
+        // static one: top of the circle (50, cy-r). Mutations on the
+        // animated arithmetic on lines 272-273 must produce different output.
+        $svg = Chart::pie(['Only' => 100])->animate()->render();
+        self::assertStringContainsString('left:50%;top:2%;', $svg);
+    }
+
+    public function test_pie_legend_with_five_slices_uses_four_columns(): void
+    {
+        // `min(4, max(1, $count))` caps columns at 4. With 5 slices we get
+        // 4 columns + 1 wrapped row. Columns are 25% wide, each label sits
+        // at `col * 25 + 1` percent from the left.
+        $svg = Chart::pie([
+            'A' => 1, 'B' => 1, 'C' => 1, 'D' => 1, 'E' => 1,
+        ])->legend()->render();
+        // 4-across at top=86, plus 1 wrapped to top=92 at left=1.
+        self::assertStringContainsString('left:1%;top:86%;', $svg);
+        self::assertStringContainsString('left:26%;top:86%;', $svg);
+        self::assertStringContainsString('left:51%;top:86%;', $svg);
+        self::assertStringContainsString('left:76%;top:86%;', $svg);
+        self::assertStringContainsString('left:1%;top:92%;', $svg);
+    }
+
+    public function test_pie_default_description_reports_total_and_count(): void
+    {
+        $svg = Chart::pie(['A' => 10, 'B' => 20, 'C' => 30])->render();
+        self::assertStringContainsString('Pie chart with 3 slices totalling 60.', $svg);
+    }
+
+    public function test_pie_default_description_singular_for_one_slice(): void
+    {
+        $svg = Chart::pie(['A' => 10])->render();
+        self::assertStringContainsString('Pie chart with 1 slice totalling 10.', $svg);
+    }
+
+    public function test_pie_default_description_no_data_phrase_when_empty(): void
+    {
+        $svg = Chart::pie([])->render();
+        self::assertStringContainsString('Pie chart (no data).', $svg);
+    }
+
+    public function test_donut_default_title(): void
+    {
+        $svg = Chart::donut(['A' => 1])->thickness(0.5)->render();
+        self::assertStringContainsString('>Donut chart<', $svg);
     }
 
     public function test_pie_skips_zero_value_slice(): void

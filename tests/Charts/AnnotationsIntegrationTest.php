@@ -147,6 +147,40 @@ final class AnnotationsIntegrationTest extends TestCase
         self::assertSame(2, substr_count($svg, 'svgraph-annotation-ref'));
     }
 
+    public function test_threshold_band_label_centred_between_band_edges(): void
+    {
+        // Asymmetric band [5, 15] over data [0..40] (domain padded to [-4, 44]):
+        //   y=5 → 81.25, y=15 → 60.42 → midpoint 70.83.
+        $svg = Chart::line([0, 10, 20, 30, 40])
+            ->annotate(ThresholdBand::y(5, 15)->label('warn'))
+            ->render();
+        self::assertStringContainsString('top:70.8333%', $svg);
+        self::assertStringContainsString('>warn', $svg);
+    }
+
+    public function test_target_zone_label_centred_between_zone_edges(): void
+    {
+        // Target zone spanning x[0, 2] of a 5-point series (indices 0..4):
+        // domain [0, 4], no padding, plot [0, 100]. Rect from x=0 to x=50.
+        // Midpoint = 25.
+        $svg = Chart::line([10, 20, 30, 40, 50])
+            ->annotate(TargetZone::x(0, 2)->label('target'))
+            ->render();
+        self::assertStringContainsString('left:25%', $svg);
+        self::assertStringContainsString('>target', $svg);
+    }
+
+    public function test_horizontal_reference_line_label_anchored_to_right_edge(): void
+    {
+        // Horizontal reference line at y=35 on [10..50] data, no axes:
+        //   plotRight = viewport.width = 100. label `right` = max(0, 100-100) = 0.
+        // If `max(0.0, ...)` becomes `max(1.0, ...)` the label shifts to 1%.
+        $svg = Chart::line([10, 20, 30, 40, 50])
+            ->annotate(ReferenceLine::y(35)->label('goal'))
+            ->render();
+        self::assertStringContainsString('right:0%', $svg);
+    }
+
     public function test_time_axis_reference_line_maps_via_time_scale(): void
     {
         // When a line chart has both a time axis and a fallback index xScale,
