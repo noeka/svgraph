@@ -119,8 +119,11 @@ final class ChartConfigurationTest extends TestCase
 
     public function test_bar_horizontal_with_rounded_corners(): void
     {
+        // Horizontal positive bars round the right edge only — two arcs
+        // at the right corners and the same aspect-corrected ry as
+        // vertical bars (rx 1.5, ry 3.0 at default aspect 2.0).
         $svg = Chart::bar(['A' => 5, 'B' => 10])->horizontal()->rounded(1.5)->render();
-        self::assertStringContainsString('rx="1.5"', $svg);
+        self::assertMatchesRegularExpression('/<path class="series-0"[^>]* d="[^"]*A1\.5,3 /', $svg);
     }
 
     public function test_bar_empty_data_renders_empty_wrapper(): void
