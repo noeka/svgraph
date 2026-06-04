@@ -32,13 +32,21 @@ final class Path
     }
 
     /**
-     * Smoothed line using cubic Bezier with simple tangent control points.
-     * Tangents at local y-extrema are flattened so the curve doesn't bulge
-     * past peaks and troughs in the data.
+     * Smoothed line using monotone cubic Hermite interpolation (Fritsch-Carlson).
+     *
+     * Tangents are derived from the data slopes and clamped so the curve is
+     * guaranteed monotone between samples: it never overshoots a data point and
+     * rounds peaks/troughs tightly instead of flattening into wide plateaus.
+     * This is the same scheme as D3's `curveMonotoneX`.
+     *
+     * Assumes x is monotone across the points (as line-chart series are). The
+     * x-coordinates may run either direction, so the reversed polyline used by
+     * `band()` is handled too. If two consecutive points share an x-coordinate
+     * the data is not x-monotone and we fall back to a straight polyline.
      *
      * @param list<array{0: float, 1: float}> $points
      */
-    public static function smoothLine(array $points, float $tension = 0.35): string
+    public static function smoothLine(array $points): string
     {
         $count = count($points);
 
@@ -50,41 +58,65 @@ final class Path
             return self::line($points);
         }
 
-        $tangents = [];
+        // Secant slopes and x-widths of each interval.
+        $slopes = [];
+        $widths = [];
 
-        for ($i = 0; $i < $count; $i++) {
-            $prev = $points[max(0, $i - 1)];
-            $next = $points[min($count - 1, $i + 1)];
+        for ($k = 0; $k < $count - 1; $k++) {
+            $h = $points[$k + 1][0] - $points[$k][0];
 
-            $tx = $next[0] - $prev[0];
-            $ty = $next[1] - $prev[1];
-
-            if ($i > 0 && $i < $count - 1) {
-                $here = $points[$i][1];
-                $dPrev = $points[$i - 1][1] - $here;
-                $dNext = $points[$i + 1][1] - $here;
-
-                $ty = $dPrev * $dNext >= 0
-                    ? 0.0
-                    : $ty;
+            if ($h === 0.0) {
+                return self::line($points);
             }
 
-            $tangents[$i] = [$tx, $ty];
+            $widths[$k] = $h;
+            $slopes[$k] = ($points[$k + 1][1] - $points[$k][1]) / $h;
+        }
+
+        // Tangents: endpoints take the adjacent secant; interior points take the
+        // mean secant, or zero at a local extremum (sign change / flat).
+        $tangents = [$slopes[0]];
+
+        for ($i = 1; $i < $count - 1; $i++) {
+            $tangents[$i] = $slopes[$i - 1] * $slopes[$i] <= 0.0
+                ? 0.0
+                : ($slopes[$i - 1] + $slopes[$i]) / 2.0;
+        }
+
+        $tangents[$count - 1] = $slopes[$count - 2];
+
+        // Fritsch-Carlson clamp: keep each (alpha, beta) inside the radius-3
+        // circle so the segment stays monotone and cannot overshoot.
+        for ($k = 0; $k < $count - 1; $k++) {
+            if ($slopes[$k] === 0.0) {
+                $tangents[$k] = 0.0;
+                $tangents[$k + 1] = 0.0;
+
+                continue;
+            }
+
+            $alpha = $tangents[$k] / $slopes[$k];
+            $beta = $tangents[$k + 1] / $slopes[$k];
+            $sum = $alpha * $alpha + $beta * $beta;
+
+            if ($sum > 9.0) {
+                $tau = 3.0 / sqrt($sum);
+                $tangents[$k] = $tau * $alpha * $slopes[$k];
+                $tangents[$k + 1] = $tau * $beta * $slopes[$k];
+            }
         }
 
         $parts = ['M' . Tag::formatFloat($points[0][0]) . ',' . Tag::formatFloat($points[0][1])];
 
-        for ($i = 0; $i < $count - 1; $i++) {
-            $p1 = $points[$i];
-            $p2 = $points[$i + 1];
+        for ($k = 0; $k < $count - 1; $k++) {
+            $p1 = $points[$k];
+            $p2 = $points[$k + 1];
+            $third = $widths[$k] / 3.0;
 
-            [$t1x, $t1y] = $tangents[$i];
-            [$t2x, $t2y] = $tangents[$i + 1];
-
-            $c1x = $p1[0] + $t1x * $tension;
-            $c1y = $p1[1] + $t1y * $tension;
-            $c2x = $p2[0] - $t2x * $tension;
-            $c2y = $p2[1] - $t2y * $tension;
+            $c1x = $p1[0] + $third;
+            $c1y = $p1[1] + $tangents[$k] * $third;
+            $c2x = $p2[0] - $third;
+            $c2y = $p2[1] - $tangents[$k + 1] * $third;
 
             $parts[] = 'C' . Tag::formatFloat($c1x) . ',' . Tag::formatFloat($c1y)
                 . ' ' . Tag::formatFloat($c2x) . ',' . Tag::formatFloat($c2y)
