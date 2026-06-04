@@ -327,6 +327,7 @@ class BarChart extends AbstractChart
                     stagger: $position++,
                     anchorX: $x + $barWidth / 2,
                     anchorY: min($baseY, $valueY),
+                    roundedSide: $this->verticalRoundedSide($value),
                 );
             }
         }
@@ -346,6 +347,8 @@ class BarChart extends AbstractChart
         $maxLen = $this->seriesCollection->maxLength();
         $posCursor = array_fill(0, $maxLen, 0.0);
         $negCursor = array_fill(0, $maxLen, 0.0);
+
+        [$lastPositive, $lastNegative] = $this->stackedOutermostIndices();
 
         $position = 0;
 
@@ -383,6 +386,7 @@ class BarChart extends AbstractChart
                     stagger: $position++,
                     anchorX: $x + $barWidth / 2,
                     anchorY: $top,
+                    roundedSide: $this->stackedVerticalRoundedSide($value, $lastPositive, $lastNegative, $i, $j),
                 );
             }
         }
@@ -438,6 +442,7 @@ class BarChart extends AbstractChart
                     stagger: $position++,
                     anchorX: $left + $width,
                     anchorY: $y + $barHeight / 2,
+                    roundedSide: $this->horizontalRoundedSide($value),
                 );
             }
         }
@@ -455,6 +460,8 @@ class BarChart extends AbstractChart
         $maxLen = $this->seriesCollection->maxLength();
         $posCursor = array_fill(0, $maxLen, 0.0);
         $negCursor = array_fill(0, $maxLen, 0.0);
+
+        [$lastPositive, $lastNegative] = $this->stackedOutermostIndices();
 
         $position = 0;
 
@@ -493,6 +500,7 @@ class BarChart extends AbstractChart
                     stagger: $position++,
                     anchorX: $left + $width,
                     anchorY: $y + $barHeight / 2,
+                    roundedSide: $this->stackedHorizontalRoundedSide($value, $lastPositive, $lastNegative, $i, $j),
                 );
             }
         }
@@ -514,35 +522,244 @@ class BarChart extends AbstractChart
         int $stagger,
         float $anchorX,
         float $anchorY,
+        string $roundedSide = 'none',
     ): void {
-        $attrs = [
-            'class' => "series-{$seriesIndex}",
-            'x' => Tag::formatFloat($x),
-            'y' => Tag::formatFloat($y),
-            'width' => Tag::formatFloat($width),
-            'height' => Tag::formatFloat($height),
-            'fill' => $color,
-        ];
-
-        if ($this->cornerRadius > 0.0) {
-            $attrs['rx'] = Tag::formatFloat($this->cornerRadius);
-            $attrs['ry'] = Tag::formatFloat($this->cornerRadius);
-        }
+        $element = $this->buildBarElement($seriesIndex, $x, $y, $width, $height, $color, $roundedSide);
+        $element->append(Tag::make('title')->append($tipText));
 
         if ($this->animated) {
             $delay = $this->staggerDelay($stagger);
-            $attrs['style'] = "--svgraph-bar-tfo:{$tfo};--svgraph-bar-delay:{$delay}s;";
+            $element->attr('style', "--svgraph-bar-tfo:{$tfo};--svgraph-bar-delay:{$delay}s;");
         }
 
-        $rect = Tag::make('rect', $attrs)->append(Tag::make('title')->append($tipText));
-
-        $wrapper->add($this->buildLink($link, $id, $rect));
+        $wrapper->add($this->buildLink($link, $id, $element));
         $wrapper->tooltip(new Tooltip(
             id: $id,
             text: Tag::escapeText($tipText),
             leftPct: $anchorX / $viewport->width * 100,
             topPct: $anchorY / $viewport->height * 100,
         ));
+    }
+
+    /**
+     * Pick `<path>` with selectively rounded corners when there is a side
+     * to round and a non-zero radius that fits; otherwise emit a flat
+     * `<rect>` so the no-rounding path remains stable.
+     */
+    private function buildBarElement(
+        int $seriesIndex,
+        float $x,
+        float $y,
+        float $width,
+        float $height,
+        string $color,
+        string $roundedSide,
+    ): Tag {
+        if ($this->cornerRadius > 0.0 && $roundedSide !== 'none' && $width > 0.0 && $height > 0.0) {
+            [$rx, $ry] = $this->resolveRadii($width, $height, $roundedSide);
+
+            if ($rx > 0.0 && $ry > 0.0) {
+                return Tag::make('path', [
+                    'class' => "series-{$seriesIndex}",
+                    'd' => $this->barPath($x, $y, $width, $height, $rx, $ry, $roundedSide),
+                    'fill' => $color,
+                ]);
+            }
+        }
+
+        return Tag::make('rect', [
+            'class' => "series-{$seriesIndex}",
+            'x' => Tag::formatFloat($x),
+            'y' => Tag::formatFloat($y),
+            'width' => Tag::formatFloat($width),
+            'height' => Tag::formatFloat($height),
+            'fill' => $color,
+        ]);
+    }
+
+    /**
+     * Aspect-correct the radius so the rendered arc is circular after the
+     * wrapper's `preserveAspectRatio="none"` stretch: a horizontal viewBox
+     * unit ends up `aspectRatio` times longer in pixels than a vertical
+     * one, so `ry` is scaled to compensate.
+     *
+     * `rx` is clamped against the rectangle's bounds in both directions
+     * (different limits for top/bottom vs left/right rounded sides) so
+     * the path never overshoots the bar.
+     *
+     * @return array{float, float}
+     */
+    private function resolveRadii(float $width, float $height, string $roundedSide): array
+    {
+        $aspect = max($this->aspectRatio, 0.01);
+
+        // Two arcs run along the rounded side; the perpendicular axis
+        // hosts the straight runs and only one arc-radius.
+        [$maxRx, $maxRy] = match ($roundedSide) {
+            'top', 'bottom' => [$width / 2, $height],
+            'left', 'right' => [$width, $height / 2],
+            default => [0.0, 0.0],
+        };
+
+        $rx = min($this->cornerRadius, $maxRx, $maxRy / $aspect);
+        $rx = max($rx, 0.0);
+
+        return [$rx, $rx * $aspect];
+    }
+
+    /**
+     * Build the path "d" attribute for a rectangle with rounded corners
+     * along a single side. Winding is clockwise so the fill-rule produces
+     * a filled shape.
+     */
+    private function barPath(
+        float $x,
+        float $y,
+        float $width,
+        float $height,
+        float $rx,
+        float $ry,
+        string $roundedSide,
+    ): string {
+        $f = static fn(float $v): string => Tag::formatFloat($v);
+
+        $x2 = $x + $width;
+        $y2 = $y + $height;
+
+        return match ($roundedSide) {
+            'top' => 'M' . $f($x) . ',' . $f($y2)
+                . ' L' . $f($x) . ',' . $f($y + $ry)
+                . ' A' . $f($rx) . ',' . $f($ry) . ' 0 0 1 ' . $f($x + $rx) . ',' . $f($y)
+                . ' L' . $f($x2 - $rx) . ',' . $f($y)
+                . ' A' . $f($rx) . ',' . $f($ry) . ' 0 0 1 ' . $f($x2) . ',' . $f($y + $ry)
+                . ' L' . $f($x2) . ',' . $f($y2)
+                . ' Z',
+            'bottom' => 'M' . $f($x) . ',' . $f($y)
+                . ' L' . $f($x2) . ',' . $f($y)
+                . ' L' . $f($x2) . ',' . $f($y2 - $ry)
+                . ' A' . $f($rx) . ',' . $f($ry) . ' 0 0 1 ' . $f($x2 - $rx) . ',' . $f($y2)
+                . ' L' . $f($x + $rx) . ',' . $f($y2)
+                . ' A' . $f($rx) . ',' . $f($ry) . ' 0 0 1 ' . $f($x) . ',' . $f($y2 - $ry)
+                . ' Z',
+            'right' => 'M' . $f($x) . ',' . $f($y)
+                . ' L' . $f($x2 - $rx) . ',' . $f($y)
+                . ' A' . $f($rx) . ',' . $f($ry) . ' 0 0 1 ' . $f($x2) . ',' . $f($y + $ry)
+                . ' L' . $f($x2) . ',' . $f($y2 - $ry)
+                . ' A' . $f($rx) . ',' . $f($ry) . ' 0 0 1 ' . $f($x2 - $rx) . ',' . $f($y2)
+                . ' L' . $f($x) . ',' . $f($y2)
+                . ' Z',
+            'left' => 'M' . $f($x2) . ',' . $f($y)
+                . ' L' . $f($x2) . ',' . $f($y2)
+                . ' L' . $f($x + $rx) . ',' . $f($y2)
+                . ' A' . $f($rx) . ',' . $f($ry) . ' 0 0 1 ' . $f($x) . ',' . $f($y2 - $ry)
+                . ' L' . $f($x) . ',' . $f($y + $ry)
+                . ' A' . $f($rx) . ',' . $f($ry) . ' 0 0 1 ' . $f($x + $rx) . ',' . $f($y)
+                . ' Z',
+            default => throw new \LogicException("Unknown rounded side: {$roundedSide}"),
+        };
+    }
+
+    private function verticalRoundedSide(float $value): string
+    {
+        if ($this->cornerRadius <= 0.0) {
+            return 'none';
+        }
+
+        return match (true) {
+            $value > 0.0 => 'top',
+            $value < 0.0 => 'bottom',
+            default => 'none',
+        };
+    }
+
+    private function horizontalRoundedSide(float $value): string
+    {
+        if ($this->cornerRadius <= 0.0) {
+            return 'none';
+        }
+
+        return match (true) {
+            $value > 0.0 => 'right',
+            $value < 0.0 => 'left',
+            default => 'none',
+        };
+    }
+
+    /**
+     * @param array<int, int> $lastPositive
+     * @param array<int, int> $lastNegative
+     */
+    private function stackedVerticalRoundedSide(
+        float $value,
+        array $lastPositive,
+        array $lastNegative,
+        int $slot,
+        int $seriesIndex,
+    ): string {
+        if ($this->cornerRadius <= 0.0) {
+            return 'none';
+        }
+
+        if ($value > 0.0 && ($lastPositive[$slot] ?? null) === $seriesIndex) {
+            return 'top';
+        }
+
+        if ($value < 0.0 && ($lastNegative[$slot] ?? null) === $seriesIndex) {
+            return 'bottom';
+        }
+
+        return 'none';
+    }
+
+    /**
+     * @param array<int, int> $lastPositive
+     * @param array<int, int> $lastNegative
+     */
+    private function stackedHorizontalRoundedSide(
+        float $value,
+        array $lastPositive,
+        array $lastNegative,
+        int $slot,
+        int $seriesIndex,
+    ): string {
+        if ($this->cornerRadius <= 0.0) {
+            return 'none';
+        }
+
+        if ($value > 0.0 && ($lastPositive[$slot] ?? null) === $seriesIndex) {
+            return 'right';
+        }
+
+        if ($value < 0.0 && ($lastNegative[$slot] ?? null) === $seriesIndex) {
+            return 'left';
+        }
+
+        return 'none';
+    }
+
+    /**
+     * For each slot, the highest series index that contributed a positive
+     * or negative value — that is the segment whose outer face sits at
+     * the open end of the stack and therefore gets the rounded side.
+     *
+     * @return array{0: array<int, int>, 1: array<int, int>}
+     */
+    private function stackedOutermostIndices(): array
+    {
+        $lastPositive = [];
+        $lastNegative = [];
+
+        foreach ($this->seriesCollection->items as $j => $series) {
+            foreach ($series->points as $i => $point) {
+                if ($point->value > 0.0) {
+                    $lastPositive[$i] = $j;
+                } elseif ($point->value < 0.0) {
+                    $lastNegative[$i] = $j;
+                }
+            }
+        }
+
+        return [$lastPositive, $lastNegative];
     }
 
     /**

@@ -95,12 +95,22 @@ final class ChartRenderingTest extends TestCase
         self::assertSame(3, substr_count($svg, '<rect '));
     }
 
-    public function test_bar_rounded_sets_corner_radius(): void
+    public function test_bar_rounded_emits_path_with_aspect_corrected_arc(): void
     {
+        // Rounded bars switch from <rect> to <path> so we can selectively
+        // round just the top edge. The arc's `ry` is scaled by the chart's
+        // aspect ratio (default 2.0) so the corner renders as a circle —
+        // not an ellipse — after `preserveAspectRatio="none"` stretching.
         $svg = Chart::bar(['Jan' => 10, 'Feb' => 20])->rounded(2.5)->render();
 
-        self::assertStringContainsString('rx="2.5"', $svg);
-        self::assertStringContainsString('ry="2.5"', $svg);
+        self::assertStringNotContainsString('<rect class="series-0"', $svg);
+        self::assertMatchesRegularExpression('/<path class="series-0"[^>]* d="[^"]*A2\.5,5 /', $svg);
+        // Top-only rounding: path starts at the bottom-left, lifts to the
+        // top-left arc, traverses the top, drops back down the right side.
+        // There must be exactly two arc commands (the two top corners).
+        preg_match_all('/<path class="series-0"[^>]* d="([^"]+)"/', $svg, $m);
+        self::assertCount(2, $m[1]);
+        self::assertSame(2, substr_count($m[1][0], 'A'));
     }
 
     public function test_bar_rainbow_uses_palette(): void
@@ -120,6 +130,145 @@ final class ChartRenderingTest extends TestCase
         $svg = Chart::bar(['A' => 5, 'B' => -3, 'C' => 7])->render();
 
         self::assertSame(3, substr_count($svg, '<rect '));
+    }
+
+    public function test_bar_rounded_negative_value_rounds_bottom_edge(): void
+    {
+        // Negative bars hang below the baseline; their open end is the
+        // bottom, so the bottom corners get rounded instead of the top.
+        $svg = Chart::bar(['A' => 5, 'B' => -3])->rounded(1)->render();
+
+        // Both bars render as paths (both have non-zero values).
+        preg_match_all('/<path class="series-0"[^>]* d="([^"]+)"/', $svg, $paths);
+        self::assertCount(2, $paths[1], 'expected both bars to be paths');
+
+        // The positive bar's path opens at the bottom-left corner (sharp);
+        // the negative bar's path opens at the top-left corner (sharp).
+        // Distinguish by where the arcs sit: positive bar's arcs are near
+        // the smaller y values, negative bar's arcs are near the larger.
+        preg_match_all('/A1,2 0 0 1 ([\d.]+),([\d.]+)/', $paths[1][0], $posArcs);
+        preg_match_all('/A1,2 0 0 1 ([\d.]+),([\d.]+)/', $paths[1][1], $negArcs);
+        self::assertCount(2, $posArcs[2]);
+        self::assertCount(2, $negArcs[2]);
+        // Mean Y of arc endpoints: positive bar's arcs sit above (lower y)
+        // its negative neighbour's arcs (higher y).
+        $posMean = (((float) $posArcs[2][0]) + ((float) $posArcs[2][1])) / 2;
+        $negMean = (((float) $negArcs[2][0]) + ((float) $negArcs[2][1])) / 2;
+        self::assertLessThan($negMean, $posMean);
+    }
+
+    public function test_bar_rounded_top_path_d_attribute_matches_exact_geometry(): void
+    {
+        // Top-rounded vertical bar, single positive value, no axes/grid:
+        //   plot is 100×92 (paddingBottom=8 for the "A" label),
+        //   gap=0.2 → bar width 80, x=10; full height 92; baseline at y=92.
+        // Exact path locks in: bottom-up traversal, top-left arc, top edge,
+        // top-right arc, right edge back down to bottom. Aspect-corrected
+        // (rx=2 / ry=4 at default aspect 2.0).
+        $svg = Chart::bar(['A' => 10])->rounded(2)->render();
+
+        preg_match_all('/<path class="series-0" d="([^"]+)"/', $svg, $m);
+        self::assertSame([
+            'M10,92 L10,4 A2,4 0 0 1 12,0 L88,0 A2,4 0 0 1 90,4 L90,92 Z',
+        ], $m[1]);
+    }
+
+    public function test_bar_rounded_bottom_path_d_attribute_for_negative_bar(): void
+    {
+        // Mixed-sign bars share the baseline (y=46): the positive bar's
+        // top-rounded path runs from baseline up; the negative bar's
+        // bottom-rounded path runs from baseline down. Exact paths lock
+        // in the side-specific corner construction.
+        $svg = Chart::bar(['A' => 10, 'B' => -10])->rounded(2)->render();
+
+        preg_match_all('/<path class="series-0" d="([^"]+)"/', $svg, $m);
+        self::assertSame([
+            'M5,46 L5,4 A2,4 0 0 1 7,0 L43,0 A2,4 0 0 1 45,4 L45,46 Z',
+            'M55,46 L95,46 L95,88 A2,4 0 0 1 93,92 L57,92 A2,4 0 0 1 55,88 Z',
+        ], $m[1]);
+    }
+
+    public function test_bar_horizontal_rounded_path_d_attribute_for_each_side(): void
+    {
+        // Horizontal bars round their leading edge: right for positive,
+        // left for negative. Two-bar mixed-sign chart locks in both.
+        $svg = Chart::bar(['A' => 10, 'B' => -10])->horizontal()->rounded(2)->render();
+
+        preg_match_all('/<path class="series-0" d="([^"]+)"/', $svg, $m);
+        self::assertSame([
+            'M60,6.8 L96,6.8 A2,4 0 0 1 98,10.8 L98,41.2 A2,4 0 0 1 96,45.2 L60,45.2 Z',
+            'M60,54.8 L60,93.2 L24,93.2 A2,4 0 0 1 22,89.2 L22,58.8 A2,4 0 0 1 24,54.8 Z',
+        ], $m[1]);
+    }
+
+    public function test_bar_rounded_aspect_ratio_scales_arc_radii(): void
+    {
+        // The chart's aspect ratio drives the SVG's non-uniform stretch,
+        // so ry is computed as aspect * rx to keep the rendered arc
+        // circular. aspect=1 ⇒ rx == ry; aspect=4 ⇒ ry = 4 * rx.
+        $square = Chart::bar(['A' => 10])->aspect(1.0)->rounded(2)->render();
+        $tall = Chart::bar(['A' => 10])->aspect(4.0)->rounded(2)->render();
+
+        self::assertStringContainsString('A2,2 0 0 1', $square);
+        self::assertStringContainsString('A2,8 0 0 1', $tall);
+    }
+
+    public function test_bar_rounded_clamps_radius_to_fit_bar_bounds(): void
+    {
+        // Requesting an oversized radius on a tall narrow bar clamps the
+        // radius in both dimensions: ry is capped at the bar's height,
+        // and rx is then ry/aspect so the arc stays circular. Here:
+        // height=92, aspect=10 ⇒ ry=92, rx=9.2.
+        $svg = Chart::bar(['A' => 1])->aspect(10.0)->rounded(10)->render();
+
+        preg_match_all('/<path class="series-0" d="([^"]+)"/', $svg, $m);
+        self::assertSame([
+            'M10,92 L10,92 A9.2,92 0 0 1 19.2,0 L80.8,0 A9.2,92 0 0 1 90,92 L90,92 Z',
+        ], $m[1]);
+    }
+
+    public function test_bar_rounded_falls_back_to_rect_when_radius_is_zero(): void
+    {
+        // cornerRadius=0 must not emit a path — every bar stays a <rect>
+        // regardless of orientation or sign.
+        $svg = Chart::bar(['A' => 10, 'B' => -10])->rounded(0)->render();
+
+        self::assertSame(2, substr_count($svg, '<rect class="series-'));
+        self::assertStringNotContainsString('<path class="series-', $svg);
+    }
+
+    public function test_bar_grouped_zero_value_bar_renders_as_flat_rect(): void
+    {
+        // Zero-value bars have no leading edge to round (no height); the
+        // path-building guard falls back to a flat <rect>. This exercises
+        // the `roundedSide === 'none'` branch of buildBarElement.
+        $svg = Chart::bar(['A' => 10, 'B' => 0])->rounded(2)->render();
+
+        self::assertStringContainsString('<rect class="series-0"', $svg);
+        // Only the positive bar should be a path.
+        preg_match_all('/<path class="series-/', $svg, $m);
+        self::assertCount(1, $m[0]);
+    }
+
+    public function test_bar_stacked_rounds_only_outermost_segment(): void
+    {
+        // Stacked bars: only the topmost positive segment in each slot
+        // gets a rounded top. Middle segments stay flat (rendered as
+        // <rect>) so the joints between stacked segments are seamless.
+        $svg = Chart::bar(['Q1' => 10])
+            ->addSeries(Series::of('mid', ['Q1' => 5]))
+            ->addSeries(Series::of('top', ['Q1' => 3]))
+            ->stacked()
+            ->rounded(1)
+            ->render();
+
+        // Bottom (series-0) and middle (series-1) segments are flat rects;
+        // only the topmost segment (series-2) is a rounded path.
+        self::assertStringContainsString('<rect class="series-0"', $svg);
+        self::assertStringContainsString('<rect class="series-1"', $svg);
+        self::assertStringContainsString('<path class="series-2"', $svg);
+        self::assertStringNotContainsString('<path class="series-0"', $svg);
+        self::assertStringNotContainsString('<path class="series-1"', $svg);
     }
 
     public function test_horizontal_bar_chart_emits_labels(): void
