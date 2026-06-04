@@ -507,19 +507,24 @@ final class Wrapper
     private function buildHoverStyle(): string
     {
         // Bars and pie circles/paths: direct interactive elements with series class.
-        $direct = '.svgraph rect[class^="series-"]:hover,'
-            . '.svgraph rect[class^="series-"]:focus-visible{'
-            . 'filter:brightness(var(--svgraph-hover-brightness,1.2));'
-            . 'stroke:currentColor;'
-            . 'stroke-width:var(--svgraph-hover-stroke-width,1.5);'
-            . 'paint-order:stroke fill;'
-            . 'outline:none;}'
+        // Hover and focus both brighten the element; focus additionally draws a
+        // CSS outline as a focus ring. This replaces the prior thick SVG stroke
+        // (which rendered as a jarring black box when the viewBox was stretched).
+        // The outline-width is driven by `--svgraph-hover-stroke-width` (kept
+        // for API stability — the value is now interpreted as pixels).
+        $brightness = '.svgraph rect[class^="series-"]:hover,'
+            . '.svgraph rect[class^="series-"]:focus-visible,'
             . '.svgraph circle[class^="series-"]:hover,'
             . '.svgraph circle[class^="series-"]:focus-visible,'
             . '.svgraph path[class^="series-"]:hover,'
             . '.svgraph path[class^="series-"]:focus-visible{'
-            . 'filter:brightness(var(--svgraph-hover-brightness,1.2));'
-            . 'outline:none;}';
+            . 'filter:brightness(var(--svgraph-hover-brightness,1.2));}';
+
+        $focusOutline = '.svgraph rect[class^="series-"]:focus-visible,'
+            . '.svgraph circle[class^="series-"]:focus-visible,'
+            . '.svgraph path[class^="series-"]:focus-visible{'
+            . 'outline:calc(var(--svgraph-hover-stroke-width,1.5) * 1px) solid currentColor;'
+            . 'outline-offset:1px;}';
 
         // Line markers: visual ellipse is first child of a <g class="series-*">.
         // :hover fires on the group when over the (transparent) hit-target child;
@@ -529,25 +534,21 @@ final class Wrapper
             . 'filter:brightness(var(--svgraph-hover-brightness,1.2));}';
 
         // Linked elements: cursor + keyboard-focus highlight rules.
-        // :hover on the inner element is already handled by the rules above
-        // (the inner rect/path/etc. is still directly under the pointer).
-        // Only :focus-visible needs extra rules because the <a> receives focus,
-        // not the inner element (which has no tabindex when wrapped).
+        // :hover on the inner element is already handled above (the inner
+        // rect/path/etc. is still directly under the pointer). Only the
+        // focus-visible rules need to descend from the <a> because the link
+        // owns the focus, not the inner shape.
         $linked = '.svgraph a.svgraph-linked{cursor:pointer;}'
-            . '.svgraph a.svgraph-linked:focus-visible rect[class^="series-"]{'
-            . 'filter:brightness(var(--svgraph-hover-brightness,1.2));'
-            . 'stroke:currentColor;'
-            . 'stroke-width:var(--svgraph-hover-stroke-width,1.5);'
-            . 'paint-order:stroke fill;'
-            . 'outline:none;}'
+            . '.svgraph a.svgraph-linked:focus-visible rect[class^="series-"],'
             . '.svgraph a.svgraph-linked:focus-visible circle[class^="series-"],'
             . '.svgraph a.svgraph-linked:focus-visible path[class^="series-"]{'
             . 'filter:brightness(var(--svgraph-hover-brightness,1.2));'
-            . 'outline:none;}'
+            . 'outline:calc(var(--svgraph-hover-stroke-width,1.5) * 1px) solid currentColor;'
+            . 'outline-offset:1px;}'
             . '.svgraph a.svgraph-linked:focus-visible g[class^="series-"]>ellipse:first-child{'
             . 'filter:brightness(var(--svgraph-hover-brightness,1.2));}';
 
-        return $direct . $lineMarkers . $linked;
+        return $brightness . $focusOutline . $lineMarkers . $linked;
     }
 
     private function buildTooltipStyle(): string
