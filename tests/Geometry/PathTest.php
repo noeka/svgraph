@@ -48,6 +48,60 @@ final class PathTest extends TestCase
         self::assertStringEndsWith('100,10', $d);
     }
 
+    public function test_smooth_line_does_not_overshoot_monotone_data(): void
+    {
+        // Monotone cubic interpolation must keep every control point inside the
+        // y-range of its segment endpoints, so the curve never bulges past the
+        // data. A cardinal spline would overshoot the steep final rise here.
+        $points = [[0.0, 80.0], [25.0, 78.0], [50.0, 70.0], [75.0, 65.0], [100.0, 10.0]];
+        $d = Path::smoothLine($points);
+
+        foreach ($this->cubicSegments($d) as $i => [$c1y, $c2y]) {
+            $lo = min($points[$i][1], $points[$i + 1][1]);
+            $hi = max($points[$i][1], $points[$i + 1][1]);
+
+            self::assertGreaterThanOrEqual($lo, $c1y);
+            self::assertLessThanOrEqual($hi, $c1y);
+            self::assertGreaterThanOrEqual($lo, $c2y);
+            self::assertLessThanOrEqual($hi, $c2y);
+        }
+    }
+
+    public function test_smooth_line_flattens_tangent_at_extremum(): void
+    {
+        // At a peak the incoming and outgoing tangents are zero, so the control
+        // points adjacent to the peak share its y-coordinate (a tight, rounded
+        // apex) rather than extending past it.
+        $points = [[0.0, 50.0], [50.0, 0.0], [100.0, 50.0]];
+        $segments = $this->cubicSegments(Path::smoothLine($points));
+
+        // Outgoing control of the first segment and incoming control of the
+        // second both sit at the peak's y (0.0).
+        self::assertEqualsWithDelta(0.0, $segments[0][1], 1e-9);
+        self::assertEqualsWithDelta(0.0, $segments[1][0], 1e-9);
+    }
+
+    /**
+     * Extracts the two control-point y-coordinates of each cubic segment from a
+     * smoothed path "d" string.
+     *
+     * @return list<array{0: float, 1: float}>  Each [c1y, c2y].
+     */
+    private function cubicSegments(string $d): array
+    {
+        preg_match_all(
+            '/C[-\d.]+,([-\d.]+) [-\d.]+,([-\d.]+) [-\d.]+,[-\d.]+/',
+            $d,
+            $matches,
+            PREG_SET_ORDER,
+        );
+
+        return array_map(
+            static fn(array $m): array => [(float) $m[1], (float) $m[2]],
+            $matches,
+        );
+    }
+
     public function test_area_empty_returns_empty_string(): void
     {
         self::assertSame('', Path::area([], 100.0));
