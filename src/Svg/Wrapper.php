@@ -484,10 +484,18 @@ final class Wrapper
             . '.svgraph path[class^="series-"]:focus-visible{'
             . 'filter:brightness(var(--svgraph-hover-brightness,1.2));}';
 
+        // Suppress the UA bounding-box outline on :focus for all interactive shapes
+        // and their focus carriers. :focus-visible styles below then layer the
+        // minimalistic stroke ring for keyboard users only.
+        $noOutline = '.svgraph rect[class^="series-"]:focus,'
+            . '.svgraph circle[class^="series-"]:focus,'
+            . '.svgraph path[class^="series-"]:focus,'
+            . '.svgraph ellipse:focus,'
+            . '.svgraph a.svgraph-linked:focus{outline:none;}';
+
         $focusRing = '.svgraph rect[class^="series-"]:focus-visible,'
             . '.svgraph circle[class^="series-"]:focus-visible,'
             . '.svgraph path[class^="series-"]:focus-visible{'
-            . 'outline:none;'
             . 'stroke:currentColor;'
             . 'stroke-width:var(--svgraph-hover-stroke-width,1.5);'
             . 'stroke-linejoin:round;}';
@@ -495,24 +503,19 @@ final class Wrapper
         // Line markers: visual ellipse is first child of a <g class="series-*">.
         // :hover fires on the group when over the (transparent) hit-target child;
         // :focus-within fires when the hit-target child receives keyboard focus.
-        // The hit ellipse (tabindex="0") gets outline:none so the UA default
-        // bounding-box outline is suppressed.
         $lineMarkers = '.svgraph g[class^="series-"]:hover>ellipse:first-child,'
             . '.svgraph g[class^="series-"]:focus-within>ellipse:first-child{'
             . 'filter:brightness(var(--svgraph-hover-brightness,1.2));}'
             . '.svgraph g[class^="series-"]:focus-within>ellipse:first-child{'
             . 'stroke:currentColor;'
-            . 'stroke-width:var(--svgraph-hover-stroke-width,1.5);}'
-            . '.svgraph ellipse:focus-visible{outline:none;}';
+            . 'stroke-width:var(--svgraph-hover-stroke-width,1.5);}';
 
         // Linked elements: cursor + keyboard-focus highlight rules.
         // :hover on the inner element is already handled above (the inner
         // rect/path/etc. is still directly under the pointer). Only the
         // focus-visible rules need to descend from the <a> because the link
-        // owns the focus, not the inner shape. The <a> itself gets outline:none
-        // to suppress its UA bounding-box outline.
+        // owns the focus, not the inner shape.
         $linked = '.svgraph a.svgraph-linked{cursor:pointer;}'
-            . '.svgraph a.svgraph-linked:focus-visible{outline:none;}'
             . '.svgraph a.svgraph-linked:focus-visible rect[class^="series-"],'
             . '.svgraph a.svgraph-linked:focus-visible circle[class^="series-"],'
             . '.svgraph a.svgraph-linked:focus-visible path[class^="series-"]{'
@@ -525,7 +528,7 @@ final class Wrapper
             . 'stroke:currentColor;'
             . 'stroke-width:var(--svgraph-hover-stroke-width,1.5);}';
 
-        return $brightness . $focusRing . $lineMarkers . $linked;
+        return $brightness . $noOutline . $focusRing . $lineMarkers . $linked;
     }
 
     private function buildTooltipStyle(): string
