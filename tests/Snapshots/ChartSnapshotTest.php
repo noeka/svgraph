@@ -15,8 +15,8 @@ use Spatie\Snapshots\MatchesSnapshots;
 /**
  * Byte-level snapshots of representative chart shapes.
  *
- * Targets the Wrapper-generated CSS paths (hover, tooltip, animation,
- * legend, crosshair, reduced-motion fallback) where mutation testing
+ * Targets the Wrapper-generated CSS paths (hover, tooltip, legend,
+ * crosshair) where mutation testing
  * showed many escaping mutants because per-attribute substring tests
  * don't constrain string-concatenation order.
  *
@@ -53,14 +53,6 @@ final class ChartSnapshotTest extends TestCase
         $this->assertMatchesSnapshot($svg);
     }
 
-    public function test_line_animated(): void
-    {
-        $svg = Chart::line([10, 24, 18, 35])
-            ->animate()
-            ->render();
-        $this->assertMatchesSnapshot($svg);
-    }
-
     public function test_line_with_crosshair_multi_series(): void
     {
         $svg = Chart::line(['Jan' => 12, 'Feb' => 27, 'Mar' => 18])
@@ -79,36 +71,6 @@ final class ChartSnapshotTest extends TestCase
         $this->assertMatchesSnapshot($svg);
     }
 
-    public function test_sparkline_animated(): void
-    {
-        $svg = Chart::sparkline([10, 12, 8, 18])
-            ->animate()
-            ->render();
-        $this->assertMatchesSnapshot($svg);
-    }
-
-    public function test_bar_vertical_grouped_animated(): void
-    {
-        $svg = Chart::bar(['Q1' => 30, 'Q2' => 45, 'Q3' => 22])
-            ->addSeries(Series::of('Costs', ['Q1' => 10, 'Q2' => 20, 'Q3' => 14]))
-            ->grouped()
-            ->animate()
-            ->axes()
-            ->grid()
-            ->render();
-        $this->assertMatchesSnapshot($svg);
-    }
-
-    public function test_bar_horizontal_animated(): void
-    {
-        $svg = Chart::bar([['A', 10], ['B', 20], ['C', 30]])
-            ->horizontal()
-            ->animate()
-            ->axes()
-            ->render();
-        $this->assertMatchesSnapshot($svg);
-    }
-
     public function test_bar_stacked_with_negatives(): void
     {
         $svg = Chart::bar(['Q1' => 30, 'Q2' => -10, 'Q3' => 22])
@@ -122,24 +84,6 @@ final class ChartSnapshotTest extends TestCase
     public function test_bar_empty(): void
     {
         $svg = Chart::bar([])->render();
-        $this->assertMatchesSnapshot($svg);
-    }
-
-    public function test_pie_with_legend_animated(): void
-    {
-        $svg = Chart::pie([['Apples', 30], ['Oranges', 20], ['Pears', 50]])
-            ->legend()
-            ->animate()
-            ->render();
-        $this->assertMatchesSnapshot($svg);
-    }
-
-    public function test_donut_animated(): void
-    {
-        $svg = Chart::donut([['A', 25], ['B', 25], ['C', 50]])
-            ->thickness(0.5)
-            ->animate()
-            ->render();
         $this->assertMatchesSnapshot($svg);
     }
 

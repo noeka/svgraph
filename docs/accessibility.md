@@ -106,14 +106,6 @@ new Link('https://example.test', target: '_blank');
 
 Override with an explicit `rel:` argument if you need different values.
 
-## Reduced motion
-
-Entrance animations only run when the user's OS does not request
-reduced motion. The animation rules are wrapped in
-`@media (prefers-reduced-motion: no-preference)`, so users who set
-"reduce motion" in their accessibility preferences see the chart in its
-final state immediately. See [Animations](animations.md) for details.
-
 ## Trend overlays
 
 When a series has [`withTrendLine()`](charts/line.md#trend-line-linear-regression)

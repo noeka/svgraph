@@ -61,15 +61,6 @@ Tune the hover/focus highlight. `brightness` is a number passed to CSS
 Theme::default()->withHover(brightness: '1.3', piePopDistance: '6px');
 ```
 
-### `withAnimation($duration, $easing)`
-
-Override the entrance-animation timing (only affects charts with
-`->animate()` enabled).
-
-```php
-Theme::default()->withAnimation('0.4s', 'cubic-bezier(0.4,0,0.2,1)');
-```
-
 ## Building a theme from scratch
 
 ```php
@@ -109,8 +100,6 @@ $theme = new Theme(
 | `hoverBrightness: string` | `--svgraph-hover-brightness` | Number passed to `filter: brightness()` on hover. |
 | `hoverStrokeWidth: string` | `--svgraph-hover-stroke-width` | Extra stroke width added on hover. |
 | `piePopDistance: string` | `--svgraph-pie-pop-distance` | CSS length pie/donut slices pop outward by on hover. |
-| `animationDuration: string` | `--svgraph-anim-dur` | CSS time for entrance animations. |
-| `animationEasing: string` | `--svgraph-anim-ease` | CSS easing function for entrance animations. |
 
 The CSS-exposed values are emitted as custom properties on the chart
 wrapper, so you can also override them from your own stylesheet — see

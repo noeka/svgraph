@@ -46,7 +46,6 @@ objects. Multi-series via [`addSeries()`](#multi-series).
 | `->aspect(float)` | `2.5` | Width-to-height ratio. |
 | `->cssClass(?string)` | `null` | Extra class on the wrapper. |
 | `->theme(Theme)` | `Theme::default()` | Colors, typography, hover styling. |
-| `->animate(bool = true)` | `false` | Draw-on entrance animation. |
 
 ## Smooth + points
 
@@ -508,5 +507,4 @@ ergonomically, while explicit per-series colors win for multi-series.
 
 - [Sparkline](sparkline.md) — compact inline variant
 - [Theming](../theming.md)
-- [Animations](../animations.md)
 - [Accessibility](../accessibility.md) (for clickable points via `Link`)

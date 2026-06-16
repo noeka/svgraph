@@ -286,18 +286,6 @@ final class LegendTest extends TestCase
 
     // ── Co-existence with other features ──────────────────────────────────────
 
-    public function test_legend_with_animation_renders_both(): void
-    {
-        $svg = Chart::line([1, 2, 3])
-            ->addSeries(Series::of('B', [4, 5, 6]))
-            ->animate()
-            ->legend()
-            ->render();
-
-        self::assertStringContainsString('svgraph-line-path', $svg);
-        self::assertStringContainsString('class="svgraph-legend"', $svg);
-    }
-
     public function test_legend_with_axes_and_grid(): void
     {
         $svg = Chart::line(['Mon' => 1, 'Tue' => 2, 'Wed' => 3])

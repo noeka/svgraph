@@ -19,8 +19,6 @@ final class Css
     private const string LENGTH_WITH_UNIT = '/\A\d+(?:\.\d+)?(?:px|em|rem|%|pt|vh|vw|ex|ch)\z/';
     private const string FONT_FAMILY = '/\A[A-Za-z0-9 ,\-\'"]{1,80}\z/';
     private const string NUMBER = '/\A\d+(?:\.\d+)?\z/';
-    private const string DURATION = '/\A\d+(?:\.\d+)?(?:ms|s)\z/';
-    private const string EASING = '/\A(?:ease(?:-in(?:-out)?|-out)?|linear|step-(?:start|end)|steps\(\d+(?:,(?:start|end))?\)|cubic-bezier\(-?[0-9.]+,-?[0-9.]+,-?[0-9.]+,-?[0-9.]+\))\z/';
 
     public static function color(?string $value): ?string
     {
@@ -49,15 +47,4 @@ final class Css
         return $value !== null && preg_match(self::LENGTH_WITH_UNIT, $value) === 1 ? $value : null;
     }
 
-    /** Validates a CSS `<time>` value, e.g. "0.6s" or "300ms". */
-    public static function duration(?string $value): ?string
-    {
-        return $value !== null && preg_match(self::DURATION, $value) === 1 ? $value : null;
-    }
-
-    /** Validates a CSS easing keyword or function, e.g. "ease-out" or "cubic-bezier(0.4,0,0.2,1)". */
-    public static function easing(?string $value): ?string
-    {
-        return $value !== null && preg_match(self::EASING, $value) === 1 ? $value : null;
-    }
 }

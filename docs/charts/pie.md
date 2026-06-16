@@ -1,6 +1,6 @@
 # Pie
 
-Standard pie chart with optional legend, slice gaps, and rotation.
+Standard pie chart with optional legend and rotation.
 
 ![Pie chart hero](../images/pie-hero.svg)
 
@@ -37,7 +37,6 @@ construction time.
 |--------|---------|-------------|
 | `->data($data)` | `[]` | Set the slices. |
 | `->thickness(float)` | `0.0` | Donut thickness as a fraction of outer radius. `0.0` = solid pie, `0.95` = hairline. Clamped to 0.0–0.95. |
-| `->gap(float degrees)` | `0.0` | Padding between slices, in degrees. |
 | `->startAngle(float degrees)` | `0.0` | Rotation offset clockwise from 12 o'clock. |
 | `->legend(bool = true)` | `false` | Render a color-swatch legend below the chart. |
 | `->aspect(float)` | `1.0` | Width-to-height ratio. |
@@ -78,22 +77,6 @@ Chart::pie([
 
 ![Pie with custom start angle](../images/pie-start-angle.svg)
 
-## Slice gap
-
-`gap()` adds padding between slices, in degrees. Useful for a more
-"infographic" look.
-
-```php
-Chart::pie([
-    'Stripe' => 1240,
-    'PayPal' => 432,
-    'Bank'   => 312,
-    'Crypto' => 184,
-])->gap(2.5)->legend();
-```
-
-![Pie with gaps](../images/pie-gap.svg)
-
 ## Color resolution
 
 For each slice, the package picks a color in this order:
@@ -113,8 +96,6 @@ slice-by-slice, not chart-wide.
 - The aspect ratio is square (`1.0`) by default. Increase it (e.g.
   `->aspect(1.4)`) to give a long horizontal legend more horizontal
   room.
-- A `gap()` larger than the slice's sweep angle silently skips that
-  slice.
 
 ## Related
 

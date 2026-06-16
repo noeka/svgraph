@@ -253,7 +253,7 @@ class BarChart extends AbstractChart
         $slotHeight = $viewport->plotHeight() / $maxLen;
 
         $this->emitVerticalGridLines($wrapper, $viewport, $xScale);
-        $this->markInteractivity($wrapper, secondaryVariant: 'bar-h');
+        $this->markInteractivity($wrapper);
 
         $annotationContext = new AnnotationContext(
             viewport: $viewport,
@@ -295,8 +295,6 @@ class BarChart extends AbstractChart
         $groupOffset = ($slotWidth - $groupWidth) / 2.0;
         $barWidth = $groupWidth / $seriesCount;
 
-        $position = 0;
-
         foreach ($this->seriesCollection->items as $j => $series) {
             $seriesColor = $this->resolveSeriesColor($series, $j);
 
@@ -323,8 +321,6 @@ class BarChart extends AbstractChart
                     color: $color,
                     tipText: $this->tooltip($this->labelFor($series, $point->label), $value),
                     link: $point->link,
-                    tfo: $this->verticalTfo($value),
-                    stagger: $position++,
                     anchorX: $x + $barWidth / 2,
                     anchorY: min($baseY, $valueY),
                     roundedSide: $this->verticalRoundedSide($value),
@@ -349,8 +345,6 @@ class BarChart extends AbstractChart
         $negCursor = array_fill(0, $maxLen, 0.0);
 
         [$lastPositive, $lastNegative] = $this->stackedOutermostIndices();
-
-        $position = 0;
 
         foreach ($this->seriesCollection->items as $j => $series) {
             $color = $this->resolveSeriesColor($series, $j);
@@ -382,8 +376,6 @@ class BarChart extends AbstractChart
                     color: $color,
                     tipText: $this->tooltip($this->labelFor($series, $point->label), $value),
                     link: $point->link,
-                    tfo: $this->verticalTfo($value),
-                    stagger: $position++,
                     anchorX: $x + $barWidth / 2,
                     anchorY: $top,
                     roundedSide: $this->stackedVerticalRoundedSide($value, $lastPositive, $lastNegative, $i, $j),
@@ -406,8 +398,6 @@ class BarChart extends AbstractChart
         $barHeight = $groupHeight / $seriesCount;
 
         $baseX = $xScale->map(0.0);
-
-        $position = 0;
 
         foreach ($this->seriesCollection->items as $j => $series) {
             $seriesColor = $this->resolveSeriesColor($series, $j);
@@ -438,8 +428,6 @@ class BarChart extends AbstractChart
                     color: $color,
                     tipText: $this->tooltip($this->labelFor($series, $point->label), $value),
                     link: $point->link,
-                    tfo: $this->horizontalTfo($value),
-                    stagger: $position++,
                     anchorX: $left + $width,
                     anchorY: $y + $barHeight / 2,
                     roundedSide: $this->horizontalRoundedSide($value),
@@ -462,8 +450,6 @@ class BarChart extends AbstractChart
         $negCursor = array_fill(0, $maxLen, 0.0);
 
         [$lastPositive, $lastNegative] = $this->stackedOutermostIndices();
-
-        $position = 0;
 
         foreach ($this->seriesCollection->items as $j => $series) {
             $color = $this->resolveSeriesColor($series, $j);
@@ -496,8 +482,6 @@ class BarChart extends AbstractChart
                     color: $color,
                     tipText: $this->tooltip($this->labelFor($series, $point->label), $value),
                     link: $point->link,
-                    tfo: $this->horizontalTfo($value),
-                    stagger: $position++,
                     anchorX: $left + $width,
                     anchorY: $y + $barHeight / 2,
                     roundedSide: $this->stackedHorizontalRoundedSide($value, $lastPositive, $lastNegative, $i, $j),
@@ -518,19 +502,12 @@ class BarChart extends AbstractChart
         string $color,
         string $tipText,
         ?Link $link,
-        string $tfo,
-        int $stagger,
         float $anchorX,
         float $anchorY,
         string $roundedSide = 'none',
     ): void {
         $element = $this->buildBarElement($seriesIndex, $x, $y, $width, $height, $color, $roundedSide);
         $element->append(Tag::make('title')->append($tipText));
-
-        if ($this->animated) {
-            $delay = $this->staggerDelay($stagger);
-            $element->attr('style', "--svgraph-bar-tfo:{$tfo};--svgraph-bar-delay:{$delay}s;");
-        }
 
         $wrapper->add($this->buildLink($link, $id, $element));
         $wrapper->tooltip(new Tooltip(
@@ -990,19 +967,9 @@ class BarChart extends AbstractChart
         return $labels;
     }
 
-    private function markInteractivity(Wrapper $wrapper, ?string $secondaryVariant = null): void
+    private function markInteractivity(Wrapper $wrapper): void
     {
         $wrapper->markHasSeriesElements();
-
-        if (!$this->animated) {
-            return;
-        }
-
-        $wrapper->enableAnimation();
-
-        if ($secondaryVariant !== null) {
-            $wrapper->setSecondaryVariant($secondaryVariant);
-        }
     }
 
     private function applyLegend(Wrapper $wrapper): void
@@ -1014,28 +981,9 @@ class BarChart extends AbstractChart
         $wrapper->setLegend($this->buildLegendEntries());
     }
 
-    /**
-     * For animation staggering: index in the rendering order so visually
-     * adjacent bars wave in together.
-     */
-    private function staggerDelay(int $position): string
-    {
-        return (string) round($position * 0.08, 3);
-    }
-
     private function barId(int $seriesIndex, int $pointIndex): string
     {
         return "{$this->chartId()}-s{$seriesIndex}-pt-{$pointIndex}";
-    }
-
-    private function verticalTfo(float $value): string
-    {
-        return $value >= 0.0 ? 'center bottom' : 'center top';
-    }
-
-    private function horizontalTfo(float $value): string
-    {
-        return $value >= 0.0 ? 'left center' : 'right center';
     }
 
     /**

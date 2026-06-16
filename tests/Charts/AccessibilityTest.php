@@ -126,14 +126,6 @@ final class AccessibilityTest extends TestCase
         self::assertStringNotContainsString('<table', $svg);
     }
 
-    public function test_animations_remain_wrapped_in_reduced_motion_query(): void
-    {
-        $svg = Chart::line([1, 2, 3])->animate()->render();
-
-        self::assertStringContainsString('@media (prefers-reduced-motion:no-preference)', $svg);
-        self::assertStringContainsString('@media (prefers-reduced-motion:reduce)', $svg);
-    }
-
     public function test_data_points_remain_keyboard_focusable(): void
     {
         $svg = Chart::line([10, 20, 30])->points()->render();
