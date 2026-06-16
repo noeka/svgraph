@@ -130,6 +130,7 @@ class PieChart extends AbstractChart
                 'cy' => Tag::formatFloat($cy),
                 'r' => Tag::formatFloat($outerRadius),
                 'fill' => $color,
+                'vector-effect' => 'non-scaling-stroke',
             ])->append(Tag::make('title')->append($tipText));
             $wrapper->add($this->buildLink($only->link, $id, $circle));
             $wrapper->tooltip(new Tooltip(
@@ -167,6 +168,7 @@ class PieChart extends AbstractChart
                 'class' => "series-{$i}",
                 'd' => $d,
                 'fill' => $color,
+                'vector-effect' => 'non-scaling-stroke',
             ])->append(Tag::make('title')->append($tipText));
             $wrapper->add($this->buildLink($slice->link, $id, $path));
             $tipRadius = $innerRadius > 0

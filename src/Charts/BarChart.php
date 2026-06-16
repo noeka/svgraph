@@ -540,6 +540,7 @@ class BarChart extends AbstractChart
                     'class' => "series-{$seriesIndex}",
                     'd' => $this->barPath($x, $y, $width, $height, $rx, $ry, $roundedSide),
                     'fill' => $color,
+                    'vector-effect' => 'non-scaling-stroke',
                 ]);
             }
         }
@@ -551,6 +552,7 @@ class BarChart extends AbstractChart
             'width' => Tag::formatFloat($width),
             'height' => Tag::formatFloat($height),
             'fill' => $color,
+            'vector-effect' => 'non-scaling-stroke',
         ]);
     }
 
