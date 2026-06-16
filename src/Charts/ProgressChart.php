@@ -101,6 +101,7 @@ final class ProgressChart extends AbstractChart
             $title = $this->formatNumber($this->value) . ' / ' . $this->formatNumber($this->target);
             $wrapper->add(Tag::make('rect', [
                 'id' => $id,
+                'class' => 'series-0',
                 'x' => '0',
                 'y' => '0',
                 'width' => Tag::formatFloat($fraction * 100),
@@ -108,6 +109,7 @@ final class ProgressChart extends AbstractChart
                 'rx' => Tag::formatFloat($rx),
                 'ry' => Tag::formatFloat($rx),
                 'fill' => $color,
+                'vector-effect' => 'non-scaling-stroke',
                 'tabindex' => '0',
             ])->append(Tag::make('title')->append($title)));
             $wrapper->tooltip(new Tooltip(

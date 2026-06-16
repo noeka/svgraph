@@ -785,6 +785,7 @@ class LineChart extends AbstractChart
                 'rx' => Tag::formatFloat($rx),
                 'ry' => Tag::formatFloat($r),
                 'fill' => $color,
+                'vector-effect' => 'non-scaling-stroke',
             ];
 
             if ($ghost) {
