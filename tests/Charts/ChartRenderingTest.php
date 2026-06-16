@@ -297,15 +297,6 @@ final class ChartRenderingTest extends TestCase
         self::assertNotSame($a, $b);
     }
 
-    public function test_pie_gap_separates_slices(): void
-    {
-        $tight = Chart::pie(['A' => 1, 'B' => 1, 'C' => 1])->render();
-        $padded = Chart::pie(['A' => 1, 'B' => 1, 'C' => 1])->gap(5)->render();
-
-        self::assertNotSame($tight, $padded);
-        self::assertSame(3, substr_count($padded, '<path '));
-    }
-
     public function test_donut_chart_uses_donut_variant(): void
     {
         $svg = Chart::donut(['A' => 1, 'B' => 1])->thickness(0.5)->render();

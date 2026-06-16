@@ -291,10 +291,6 @@ class LineChart extends AbstractChart
             }
         }
 
-        if ($this->animated) {
-            $wrapper->enableAnimation();
-        }
-
         if ($this->showCrosshair) {
             foreach ($this->buildCrosshairLines($primaryXs, $viewport) as $line) {
                 $wrapper->add($line);
@@ -579,13 +575,6 @@ class LineChart extends AbstractChart
             'stroke-linejoin' => 'round',
             'vector-effect' => 'non-scaling-stroke',
         ];
-
-        if ($this->animated) {
-            $lineAttrs['class'] = "series-{$index} svgraph-line-path";
-            $lineAttrs['pathLength'] = '1';
-            $lineAttrs['stroke-dasharray'] = '1';
-            $lineAttrs['stroke-dashoffset'] = '1';
-        }
 
         $wrapper->add(Tag::void('path', $lineAttrs));
 

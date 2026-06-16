@@ -49,7 +49,6 @@ of `0` (or negative) renders an empty bar.
 | `->aspect(float)` | `20.0` | Width-to-height ratio. |
 | `->cssClass(?string)` | `null` | Extra class on the wrapper. |
 | `->theme(Theme)` | `Theme::default()` | Theme tokens. |
-| `->animate(bool = true)` | (no-op) | Progress charts have no entrance animation; the flag is accepted but ignored. |
 
 ## Custom track color
 
@@ -87,8 +86,6 @@ Chart::progress(value: 12, target: 20)
   ratio (`->aspect(8)`) for a chunkier bar.
 - The hover/focus tooltip shows formatted `value / target` (e.g.
   `7,400 / 10,000`).
-- Animations are not implemented for progress charts. Calling
-  `->animate()` is a no-op.
 
 ## Related
 

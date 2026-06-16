@@ -8,8 +8,7 @@ your own stylesheet without touching PHP.
 
 The outer element is a `<div class="svgraph svgraph--{variant}">`,
 where `{variant}` is one of `line`, `sparkline`, `bar`, `pie`, `donut`,
-or `progress`. Bar charts in horizontal mode also receive a
-`svgraph--bar-h` class when animated.
+or `progress`.
 
 You can attach extra classes via `->cssClass('your-class')`.
 
@@ -42,14 +41,11 @@ via `Theme::with*()` or directly in your CSS.
 | `--svgraph-hover-brightness` | `1.2` | Number passed to `filter: brightness()` on hover/focus. |
 | `--svgraph-hover-stroke-width` | `1.5` | Extra SVG stroke width added on hover. |
 | `--svgraph-pie-pop-distance` | `3px` | How far pie/donut slices pop outward on hover. |
-| `--svgraph-anim-dur` | `0.6s` | Entrance-animation duration. |
-| `--svgraph-anim-ease` | `ease-out` | Entrance-animation easing function. |
 
 ```css
 .svgraph {
     --svgraph-tt-bg: #0f172a;
     --svgraph-pie-pop-distance: 6px;
-    --svgraph-anim-dur: 0.4s;
 }
 ```
 

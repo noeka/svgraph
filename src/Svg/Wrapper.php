@@ -36,10 +36,6 @@ final class Wrapper
 
     private bool $hasSeriesElements = false;
 
-    private bool $animated = false;
-
-    private ?string $secondaryVariant = null;
-
     private int $crosshairColumns = 0;
 
     private ?string $titleId = null;
@@ -92,13 +88,6 @@ final class Wrapper
         return $this;
     }
 
-    public function enableAnimation(): self
-    {
-        $this->animated = true;
-
-        return $this;
-    }
-
     /**
      * Enable per-column crosshair styling. $columnCount is the number of x-columns
      * in the chart; one CSS rule block is emitted per column to drive the
@@ -107,17 +96,6 @@ final class Wrapper
     public function enableCrosshair(int $columnCount): self
     {
         $this->crosshairColumns = max(0, $columnCount);
-
-        return $this;
-    }
-
-    /**
-     * Add an extra `svgraph--{variant}` class to the wrapper, used to
-     * distinguish sub-variants (e.g. horizontal bars) for animation CSS.
-     */
-    public function setSecondaryVariant(string $variant): self
-    {
-        $this->secondaryVariant = $variant;
 
         return $this;
     }
@@ -193,7 +171,7 @@ final class Wrapper
             'style' => $this->buildWrapperStyle($hasLegend, $aspectStyle),
         ]);
 
-        if ($this->tooltips !== [] || $this->hasSeriesElements || $this->animated || $this->crosshairColumns > 0 || $hasLegend || $hasDataTable) {
+        if ($this->tooltips !== [] || $this->hasSeriesElements || $this->crosshairColumns > 0 || $hasLegend || $hasDataTable) {
             $outerDiv->appendRaw($this->buildStyle($hasDataTable));
         }
 
@@ -243,10 +221,6 @@ final class Wrapper
     {
         $classes = ['svgraph', 'svgraph--' . $this->variantClass];
 
-        if ($this->secondaryVariant !== null) {
-            $classes[] = 'svgraph--' . $this->secondaryVariant;
-        }
-
         if ($this->userClass !== null && $this->userClass !== '') {
             $classes[] = $this->userClass;
         }
@@ -272,12 +246,6 @@ final class Wrapper
             $style .= "--svgraph-hover-brightness:{$hoverBrightness};"
                 . "--svgraph-hover-stroke-width:{$strokeWidth};"
                 . "--svgraph-pie-pop-distance:{$popDistance};";
-        }
-
-        if ($this->animated) {
-            $animationDuration = Css::duration($this->theme->animationDuration) ?? '0.6s';
-            $animationEasing = Css::easing($this->theme->animationEasing) ?? 'ease-out';
-            $style .= "--svgraph-anim-dur:{$animationDuration};--svgraph-anim-ease:{$animationEasing};";
         }
 
         return $style;
@@ -452,10 +420,6 @@ final class Wrapper
             $css .= $this->buildTooltipStyle();
         }
 
-        if ($this->animated) {
-            $css .= $this->buildAnimationStyle();
-        }
-
         if ($this->crosshairColumns > 0) {
             $css .= $this->buildCrosshairStyle();
         }
@@ -603,80 +567,6 @@ final class Wrapper
         }
 
         return $base . $this->wrapInSupportsHas($rules);
-    }
-
-    private function buildAnimationStyle(): string
-    {
-        $durationVar = 'var(--svgraph-anim-dur,0.6s)';
-        $easingVar = 'var(--svgraph-anim-ease,ease-out)';
-        $css = '';
-        $reducedMotionCss = '';
-
-        // Line / sparkline: stroke-dasharray draw-on using pathLength="1" normalisation.
-        // stroke-dasharray="1" and stroke-dashoffset="1" are set as HTML attributes
-        // (where pathLength normalization is reliable); CSS only drives the offset.
-        if ($this->variantClass === 'line' || $this->variantClass === 'sparkline') {
-            $css .= '@keyframes svgraph-draw-line{from{stroke-dashoffset:1}to{stroke-dashoffset:0}}'
-                . '.svgraph--' . $this->variantClass . ' .svgraph-line-path{'
-                . 'animation:svgraph-draw-line ' . $durationVar . ' ' . $easingVar . ' both;}';
-            // stroke-dashoffset="1" is set in the HTML; override it to 0 here.
-            $reducedMotionCss .= '.svgraph--' . $this->variantClass . ' .svgraph-line-path{stroke-dashoffset:0;}';
-        }
-
-        // Bar: scale from the baseline edge on enter.
-        if ($this->variantClass === 'bar') {
-            $css .= $this->buildBarAnimationStyle($durationVar, $easingVar);
-        }
-
-        // Pie / donut: stroke-dasharray sweep using the stroke-circle technique.
-        // Each slice is rendered as a circle with stroke-dasharray; the from state
-        // has dasharray:0 circ (nothing visible) and the to state shows the arc.
-        // stroke-dashoffset stays constant (positions the arc correctly) while
-        // stroke-dasharray animates to reveal the slice.
-        if ($this->variantClass === 'pie' || $this->variantClass === 'donut') {
-            $css .= '@keyframes svgraph-pie-sweep{'
-                . 'from{stroke-dasharray:0 var(--svgraph-pie-circ)}'
-                . 'to{stroke-dasharray:var(--svgraph-pie-len) calc(var(--svgraph-pie-circ) - var(--svgraph-pie-len))}}'
-                . '.svgraph--' . $this->variantClass . ' circle[class^="series-"]{'
-                . 'animation:svgraph-pie-sweep ' . $durationVar . ' ' . $easingVar . ' both;'
-                . 'animation-delay:var(--svgraph-pie-delay,0ms);}';
-            // stroke-dasharray="0 circ" is the initial hidden state; show the final arc.
-            $reducedMotionCss .= '.svgraph--' . $this->variantClass . ' circle[class^="series-"]{'
-                . 'stroke-dasharray:var(--svgraph-pie-len) calc(var(--svgraph-pie-circ) - var(--svgraph-pie-len));}';
-        }
-
-        $result = '@media (prefers-reduced-motion:no-preference){' . $css . '}';
-
-        if ($reducedMotionCss !== '') {
-            $result .= '@media (prefers-reduced-motion:reduce){' . $reducedMotionCss . '}';
-        }
-
-        return $result;
-    }
-
-    private function buildBarAnimationStyle(string $durationVar, string $easingVar): string
-    {
-        // Rounded bars render as <path>; flat bars as <rect>. The animation
-        // applies to both shapes.
-        if ($this->secondaryVariant === 'bar-h') {
-            // Horizontal bars grow from left (positive) or right (negative).
-            return '@keyframes svgraph-grow-hbar{from{transform:scaleX(0)}to{transform:scaleX(1)}}'
-                . '.svgraph--bar.svgraph--bar-h rect[class^="series-"],'
-                . '.svgraph--bar.svgraph--bar-h path[class^="series-"]{'
-                . 'transform-box:fill-box;'
-                . 'transform-origin:var(--svgraph-bar-tfo,left center);'
-                . 'animation:svgraph-grow-hbar ' . $durationVar . ' ' . $easingVar . ' both;'
-                . 'animation-delay:var(--svgraph-bar-delay,0s);}';
-        }
-
-        // Vertical bars grow from bottom (positive) or top (negative).
-        return '@keyframes svgraph-grow-vbar{from{transform:scaleY(0)}to{transform:scaleY(1)}}'
-            . '.svgraph--bar:not(.svgraph--bar-h) rect[class^="series-"],'
-            . '.svgraph--bar:not(.svgraph--bar-h) path[class^="series-"]{'
-            . 'transform-box:fill-box;'
-            . 'transform-origin:var(--svgraph-bar-tfo,center bottom);'
-            . 'animation:svgraph-grow-vbar ' . $durationVar . ' ' . $easingVar . ' both;'
-            . 'animation-delay:var(--svgraph-bar-delay,0s);}';
     }
 
     private function wrapInSupportsHas(string $rules): string

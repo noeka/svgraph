@@ -344,15 +344,6 @@ final class ChartConfigurationTest extends TestCase
         self::assertStringContainsString('left:50%;top:21.2%;', $svg);
     }
 
-    public function test_animated_single_slice_tooltip_matches_static(): void
-    {
-        // The animated single-slice fast-path uses the same anchor as the
-        // static one: top of the circle (50, cy-r). Mutations on the
-        // animated arithmetic on lines 272-273 must produce different output.
-        $svg = Chart::pie(['Only' => 100])->animate()->render();
-        self::assertStringContainsString('left:50%;top:2%;', $svg);
-    }
-
     public function test_pie_legend_with_five_slices_uses_four_columns(): void
     {
         // `min(4, max(1, $count))` caps columns at 4. With 5 slices we get
@@ -397,12 +388,6 @@ final class ChartConfigurationTest extends TestCase
     {
         $svg = Chart::pie(['A' => 50, 'B' => 0, 'C' => 50])->render();
         self::assertSame(2, substr_count($svg, '<path '));
-    }
-
-    public function test_pie_huge_gap_collapses_slice(): void
-    {
-        $svg = Chart::pie(['A' => 1, 'B' => 1, 'C' => 1])->gap(180)->render();
-        self::assertStringContainsString('svgraph--pie', $svg);
     }
 
     public function test_pie_thickness_clamped_to_valid_range(): void

@@ -9,4 +9,4 @@ return Chart::donut([
     'PayPal' => 432,
     'Bank'   => 312,
     'Crypto' => 184,
-])->thickness(0.6)->gap(1.5)->legend();
+])->thickness(0.6)->legend();

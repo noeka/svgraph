@@ -43,7 +43,6 @@ leftward (horizontal) from the zero baseline.
 | `->aspect(float)` | `2.0` | Width-to-height ratio. |
 | `->cssClass(?string)` | `null` | Extra class on the wrapper. |
 | `->theme(Theme)` | `Theme::default()` | Theme tokens. |
-| `->animate(bool = true)` | `false` | Bars grow from baseline / axis on entrance. |
 
 ## Horizontal
 
@@ -159,10 +158,8 @@ For a given series, the package picks a color in this order:
   the axis starts at 0 (not the data minimum).
 - `gap()` is clamped to the range 0.0–0.9; values outside are clamped
   silently.
-- Animation staggers bars in render order at 80 ms each.
 
 ## Related
 
 - [Theming](../theming.md)
-- [Animations](../animations.md)
 - [Accessibility](../accessibility.md)

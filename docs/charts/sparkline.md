@@ -40,7 +40,6 @@ Sparkline shares all options with `LineChart`. The most useful are:
 | `->aspect(float)` | `4.0` | Width-to-height ratio. |
 | `->cssClass(?string)` | `null` | Extra class to append to the wrapper. |
 | `->theme(Theme)` | `Theme::default()` | Theme used for colors, typography, hover. |
-| `->animate(bool = true)` | `false` | Draw-on entrance animation. |
 
 ## Filled smoothed sparkline
 

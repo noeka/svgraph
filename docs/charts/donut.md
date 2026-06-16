@@ -24,8 +24,8 @@ echo Chart::donut([
 ## Options
 
 Donut accepts every option on [`PieChart`](pie.md#options) — `data()`,
-`thickness()`, `gap()`, `startAngle()`, `legend()`, `aspect()`,
-`cssClass()`, `theme()`, `animate()`.
+`thickness()`, `startAngle()`, `legend()`, `aspect()`,
+`cssClass()`, `theme()`.
 
 The only difference from `PieChart`: `thickness` defaults to `0.4`
 instead of `0.0`.
@@ -47,7 +47,7 @@ Chart::donut([
     'PayPal' => 432,
     'Bank'   => 312,
     'Crypto' => 184,
-])->thickness(0.6)->gap(1.5)->legend();
+])->thickness(0.6)->legend();
 ```
 
 ![Donut with custom thickness](../images/donut-thickness.svg)
@@ -57,7 +57,7 @@ Chart::donut([
 - `Chart::donut()` is a convenience for `new DonutChart()`. You can
   also build a thin donut from `Chart::pie($data)->thickness(0.4)` —
   the rendered output is identical.
-- All accessibility, theming, animation, and CSS notes from the
+- All accessibility, theming, and CSS notes from the
   [pie page](pie.md) apply unchanged.
 
 ## Related

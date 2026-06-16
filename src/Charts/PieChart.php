@@ -21,7 +21,6 @@ class PieChart extends AbstractChart
     protected float $thickness = 0.0;
     protected bool $showLegend = false;
     protected float $startAngle = 0.0;
-    protected float $padAngle = 0.0;
 
     public function __construct()
     {
@@ -65,16 +64,6 @@ class PieChart extends AbstractChart
         return $this;
     }
 
-    /**
-     * Gap between slices in degrees.
-     */
-    public function gap(float $degrees): static
-    {
-        $this->padAngle = max(0.0, $degrees);
-
-        return $this;
-    }
-
     public function render(): string
     {
         $viewport = new Viewport();
@@ -106,18 +95,12 @@ class PieChart extends AbstractChart
         $innerRadius = $outerRadius * $this->thickness;
 
         $startRad = deg2rad($this->startAngle);
-        $padRad = deg2rad($this->padAngle);
 
         $chartId = $this->chartId();
 
         $wrapper->markHasSeriesElements();
 
-        if ($this->animated) {
-            $wrapper->enableAnimation();
-            $this->renderAnimated($wrapper, $viewport, $chartId, $cx, $cy, $outerRadius, $innerRadius, $total, $startRad, $padRad, $hasLegend);
-        } else {
-            $this->renderStatic($wrapper, $viewport, $chartId, $cx, $cy, $outerRadius, $innerRadius, $total, $startRad, $padRad, $hasLegend);
-        }
+        $this->renderStatic($wrapper, $viewport, $chartId, $cx, $cy, $outerRadius, $innerRadius, $total, $startRad, $hasLegend);
 
         $this->applyAccessibility($wrapper);
 
@@ -134,7 +117,6 @@ class PieChart extends AbstractChart
         float $innerRadius,
         float $total,
         float $startRad,
-        float $padRad,
         bool $hasLegend,
     ): void {
         if ($this->thickness === 0.0 && count($this->slices) === 1) {
@@ -174,13 +156,8 @@ class PieChart extends AbstractChart
             }
 
             $sweep = ($value / $total) * 2 * M_PI;
-            $start = $angle + ($padRad / 2);
-            $end = $angle + $sweep - ($padRad / 2);
-
-            if ($end <= $start) {
-                $angle += $sweep;
-                continue;
-            }
+            $start = $angle;
+            $end = $angle + $sweep;
 
             $color = $slice->color ?? $this->theme->colorAt($i);
             $d = Path::arc($cx, $cy, $outerRadius, $innerRadius, $start, $end);
@@ -203,143 +180,6 @@ class PieChart extends AbstractChart
                 topPct: $tipY / $viewport->height * 100,
             ));
             $angle += $sweep;
-        }
-
-        if ($hasLegend) {
-            $this->addLegend($wrapper);
-        }
-    }
-
-    /**
-     * Animated rendering using the stroke-circle technique:
-     * each slice is a circle with stroke-dasharray set to show only its arc
-     * portion, and stroke-dashoffset to position it correctly. The CSS
-     * animation sweeps stroke-dasharray from 0 to the arc length.
-     */
-    private function renderAnimated(
-        Wrapper $wrapper,
-        Viewport $viewport,
-        string $chartId,
-        float $cx,
-        float $cy,
-        float $outerRadius,
-        float $innerRadius,
-        float $total,
-        float $startRad,
-        float $padRad,
-        bool $hasLegend,
-    ): void {
-        // Stroke-circle geometry: the circle radius sits at the midpoint of the
-        // ring, with stroke-width spanning the full ring width.
-        $strokeR = $innerRadius > 0.0
-            ? ($outerRadius + $innerRadius) / 2.0
-            : $outerRadius / 2.0;
-        $strokeWidth = $innerRadius > 0.0
-            ? $outerRadius - $innerRadius
-            : $outerRadius;
-        $circumference = 2.0 * M_PI * $strokeR;
-
-        $tipRadius = $innerRadius > 0.0
-            ? ($outerRadius + $innerRadius) / 2.0
-            : $outerRadius * 0.6;
-
-        // Handle single solid-pie slice (thickness=0, one slice).
-        // Any donut or multi-slice case falls through to the loop.
-        if ($this->thickness === 0.0 && count($this->slices) === 1) {
-            $only = $this->slices[0];
-            $color = $only->color ?? $this->theme->colorAt(0);
-            $id = "{$chartId}-pt-0";
-            $tipText = $this->tooltip($only->label, $only->value);
-            $circ = Tag::formatFloat($circumference);
-            $off = Tag::formatFloat($circumference / 4.0 - ($this->startAngle / 360.0) * $circumference);
-            // Full circle: initial dasharray = 0 circ (hidden); animation sweeps to circ 0.
-            $circle = Tag::make('circle', [
-                'class' => 'series-0',
-                'cx' => Tag::formatFloat($cx),
-                'cy' => Tag::formatFloat($cy),
-                'r' => Tag::formatFloat($strokeR),
-                'fill' => 'none',
-                'stroke' => $color,
-                'stroke-width' => Tag::formatFloat($strokeWidth),
-                'stroke-dasharray' => "0 {$circ}",
-                'stroke-dashoffset' => $off,
-                'style' => "--svgraph-pie-off:{$off};--svgraph-pie-len:{$circ};--svgraph-pie-circ:{$circ};",
-            ])->append(Tag::make('title')->append($tipText));
-            $wrapper->add($this->buildLink($only->link, $id, $circle));
-            $wrapper->tooltip(new Tooltip(
-                id: $id,
-                text: Tag::escapeText($tipText),
-                leftPct: $cx / $viewport->width * 100,
-                topPct: ($cy - $outerRadius) / $viewport->height * 100,
-            ));
-
-            if ($hasLegend) {
-                $this->addLegend($wrapper);
-            }
-
-            return;
-        }
-
-        $startOffsetArc = ($this->startAngle / 360.0) * $circumference;
-        $halfGapArc = $padRad * $strokeR / 2.0;
-        $cumulativeArc = 0.0;
-        $circ = Tag::formatFloat($circumference);
-
-        $angle = $startRad;
-
-        foreach ($this->slices as $i => $slice) {
-            $value = max(0.0, $slice->value);
-
-            if ($value <= 0.0) {
-                continue;
-            }
-
-            $sweepAngle = ($value / $total) * 2.0 * M_PI;
-            $sweepArc = $sweepAngle * $strokeR;
-            $visibleArc = max(0.0, $sweepArc - $padRad * $strokeR);
-
-            if ($visibleArc <= 0.0) {
-                $cumulativeArc += $sweepArc;
-                $angle += $sweepAngle;
-                continue;
-            }
-
-            $dashOffset = $circumference / 4.0 - $startOffsetArc - $cumulativeArc - $halfGapArc;
-            $arcLen = Tag::formatFloat($visibleArc);
-            $off = Tag::formatFloat($dashOffset);
-            $delay = round($i * 0.08, 3);
-
-            $midAngle = $angle + $sweepAngle / 2.0;
-
-            $color = $slice->color ?? $this->theme->colorAt($i);
-            $id = "{$chartId}-pt-{$i}";
-            $tipText = $this->tooltip($slice->label, $value);
-
-            $circle = Tag::make('circle', [
-                'class' => "series-{$i}",
-                'cx' => Tag::formatFloat($cx),
-                'cy' => Tag::formatFloat($cy),
-                'r' => Tag::formatFloat($strokeR),
-                'fill' => 'none',
-                'stroke' => $color,
-                'stroke-width' => Tag::formatFloat($strokeWidth),
-                'stroke-dasharray' => "0 {$circ}",
-                'stroke-dashoffset' => $off,
-                'style' => "--svgraph-pie-off:{$off};--svgraph-pie-len:{$arcLen};--svgraph-pie-circ:{$circ};animation-delay:{$delay}s;",
-            ])->append(Tag::make('title')->append($tipText));
-
-            $wrapper->add($this->buildLink($slice->link, $id, $circle));
-
-            [$tipX, $tipY] = Path::polar($cx, $cy, $tipRadius, $midAngle);
-            $wrapper->tooltip(new Tooltip(
-                id: $id,
-                text: Tag::escapeText($tipText),
-                leftPct: $tipX / $viewport->width * 100,
-                topPct: $tipY / $viewport->height * 100,
-            ));
-
-            $cumulativeArc += $sweepArc;
-            $angle += $sweepAngle;
         }
 
         if ($hasLegend) {
