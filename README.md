@@ -6,6 +6,8 @@ JavaScript-free SVG chart rendering for PHP. Sparkline, line/area, bar,
 pie/donut, and progress charts as static markup — no canvas, no JS, no
 build step.
 
+Read a fun story why I made this (Danish): [SVG-grafer i PHP uden JavaScript]([docs/charts/bar.md#multi-series](https://noeka.dk/noter/hvorfor-jeg-byggede-svgraph/))
+
 ![Hero example](docs/images/line-hero.svg)
 
 - Server-side: charts render to plain SVG strings, ready to echo into a template.
