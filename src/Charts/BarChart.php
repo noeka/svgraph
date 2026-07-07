@@ -7,7 +7,6 @@ namespace Noeka\Svgraph\Charts;
 use Noeka\Svgraph\Annotations\AnnotationContext;
 use Noeka\Svgraph\Annotations\AnnotationLayer;
 use Noeka\Svgraph\Data\Link;
-use Noeka\Svgraph\Data\Series;
 use Noeka\Svgraph\Geometry\Path;
 use Noeka\Svgraph\Geometry\Scale;
 use Noeka\Svgraph\Geometry\Viewport;
@@ -22,7 +21,6 @@ class BarChart extends AbstractSeriesChart
     private const string MODE_GROUPED = 'grouped';
     private const string MODE_STACKED = 'stacked';
 
-    protected ?string $color = null;
     protected float $gap = 0.2;
     protected bool $horizontal = false;
     protected float $cornerRadius = 0.0;
@@ -39,7 +37,7 @@ class BarChart extends AbstractSeriesChart
 
     public function color(string $color): static
     {
-        $this->color = $color;
+        $this->primarySeriesColor = $color;
 
         return $this;
     }
@@ -134,7 +132,7 @@ class BarChart extends AbstractSeriesChart
         $baseY = $yScale->map(0.0);
 
         $this->emitHorizontalGridLines($wrapper, $viewport, $yScale);
-        $this->markInteractivity($wrapper);
+        $wrapper->markHasSeriesElements();
 
         $annotationContext = new AnnotationContext(
             viewport: $viewport,
@@ -182,7 +180,7 @@ class BarChart extends AbstractSeriesChart
         $slotHeight = $viewport->plotHeight() / $maxLen;
 
         $this->emitVerticalGridLines($wrapper, $viewport, $xScale);
-        $this->markInteractivity($wrapper);
+        $wrapper->markHasSeriesElements();
 
         $annotationContext = new AnnotationContext(
             viewport: $viewport,
@@ -713,7 +711,7 @@ class BarChart extends AbstractSeriesChart
 
         foreach ($yScale->ticks($this->tickCount) as $tick) {
             $y = $yScale->map($tick);
-            $wrapper->add($this->gridLine($viewport->plotLeft(), $y, $viewport->plotRight(), $y));
+            $wrapper->add($this->plotLine($viewport->plotLeft(), $y, $viewport->plotRight(), $y, $this->theme->gridColor));
         }
     }
 
@@ -725,21 +723,8 @@ class BarChart extends AbstractSeriesChart
 
         foreach ($xScale->ticks($this->tickCount) as $tick) {
             $x = $xScale->map($tick);
-            $wrapper->add($this->gridLine($x, $viewport->plotTop(), $x, $viewport->plotBottom()));
+            $wrapper->add($this->plotLine($x, $viewport->plotTop(), $x, $viewport->plotBottom(), $this->theme->gridColor));
         }
-    }
-
-    private function gridLine(float $x1, float $y1, float $x2, float $y2): Tag
-    {
-        return Tag::void('line', [
-            'x1' => Tag::formatFloat($x1),
-            'x2' => Tag::formatFloat($x2),
-            'y1' => Tag::formatFloat($y1),
-            'y2' => Tag::formatFloat($y2),
-            'stroke' => $this->theme->gridColor,
-            'stroke-width' => '1',
-            'vector-effect' => 'non-scaling-stroke',
-        ]);
     }
 
     private function emitVerticalAxis(Wrapper $wrapper, Viewport $viewport, Scale $yScale, float $baseY): void
@@ -748,15 +733,7 @@ class BarChart extends AbstractSeriesChart
             return;
         }
 
-        $wrapper->add(Tag::void('line', [
-            'x1' => Tag::formatFloat($viewport->plotLeft()),
-            'x2' => Tag::formatFloat($viewport->plotRight()),
-            'y1' => Tag::formatFloat($baseY),
-            'y2' => Tag::formatFloat($baseY),
-            'stroke' => $this->theme->axisColor,
-            'stroke-width' => '1',
-            'vector-effect' => 'non-scaling-stroke',
-        ]));
+        $wrapper->add($this->plotLine($viewport->plotLeft(), $baseY, $viewport->plotRight(), $baseY, $this->theme->axisColor));
 
         foreach ($yScale->ticks($this->tickCount) as $tick) {
             $wrapper->label(new Label(
@@ -788,7 +765,7 @@ class BarChart extends AbstractSeriesChart
 
     private function emitBottomCategoryLabels(Wrapper $wrapper, Viewport $viewport, float $slotWidth): void
     {
-        foreach ($this->visibleCategoryLabels() as $i => $label) {
+        foreach ($this->filteredCommonLabels() as $i => $label) {
             $wrapper->label(new Label(
                 text: $label,
                 left: $viewport->plotLeft() + ($i + 0.5) * $slotWidth,
@@ -801,7 +778,7 @@ class BarChart extends AbstractSeriesChart
 
     private function emitLeftCategoryLabels(Wrapper $wrapper, Viewport $viewport, float $slotHeight): void
     {
-        foreach ($this->visibleCategoryLabels() as $i => $label) {
+        foreach ($this->filteredCommonLabels() as $i => $label) {
             $wrapper->label(new Label(
                 text: $label,
                 left: 0,
@@ -812,101 +789,9 @@ class BarChart extends AbstractSeriesChart
         }
     }
 
-    /**
-     * @return array<int, string>
-     */
-    private function visibleCategoryLabels(): array
-    {
-        if (!$this->seriesCollection->hasLabels()) {
-            return [];
-        }
-
-        $labels = [];
-
-        foreach ($this->seriesCollection->commonLabels() as $i => $label) {
-            if ($label === null) {
-                continue;
-            }
-
-            if ($label === '') {
-                continue;
-            }
-
-            $labels[$i] = $label;
-        }
-
-        return $labels;
-    }
-
-    private function markInteractivity(Wrapper $wrapper): void
-    {
-        $wrapper->markHasSeriesElements();
-    }
-
-    private function applyLegend(Wrapper $wrapper): void
-    {
-        if (!$this->showLegend) {
-            return;
-        }
-
-        $wrapper->setLegend($this->buildLegendEntries());
-    }
-
     private function barId(int $seriesIndex, int $pointIndex): string
     {
         return "{$this->chartId()}-s{$seriesIndex}-pt-{$pointIndex}";
-    }
-
-    /**
-     * @return list<array{id: string, seriesIndex: int, name: string, color: string}>
-     */
-    private function buildLegendEntries(): array
-    {
-        $chartId = $this->chartId();
-        $entries = [];
-
-        foreach ($this->seriesCollection->items as $i => $series) {
-            $name = $series->name !== '' ? $series->name : 'Series ' . ($i + 1);
-            $entries[] = [
-                'id' => "{$chartId}-s{$i}",
-                'seriesIndex' => $i,
-                'name' => $name,
-                'color' => $this->resolveSeriesColor($series, $i),
-            ];
-        }
-
-        return $entries;
-    }
-
-    /**
-     * Per-series color: explicit Series->color wins, then chart-level
-     * `->color()` for series 0 (so single-series `Chart::bar()->color()`
-     * stays ergonomic), then the theme palette.
-     */
-    private function resolveSeriesColor(Series $series, int $index): string
-    {
-        if ($series->color !== null) {
-            return $series->color;
-        }
-
-        if ($index === 0 && $this->color !== null) {
-            return $this->color;
-        }
-
-        return $this->theme->colorAt($index);
-    }
-
-    private function labelFor(Series $series, ?string $pointLabel): ?string
-    {
-        if ($series->name === '') {
-            return $pointLabel;
-        }
-
-        if ($pointLabel === null || $pointLabel === '') {
-            return $series->name;
-        }
-
-        return "{$series->name} — {$pointLabel}";
     }
 
     #[\Override]
@@ -939,40 +824,8 @@ class BarChart extends AbstractSeriesChart
     }
 
     #[\Override]
-    protected function buildDataTable(): array
+    protected function dataTableRowHeader(): string
     {
-        if ($this->seriesCollection->isEmpty()) {
-            return ['columns' => [], 'rows' => []];
-        }
-
-        $columns = ['Category'];
-
-        foreach ($this->seriesCollection->items as $i => $series) {
-            $columns[] = $series->name !== '' ? $series->name : 'Series ' . ($i + 1);
-        }
-
-        $labels = $this->seriesCollection->commonLabels();
-        $maxLen = $this->seriesCollection->maxLength();
-        $rows = [];
-
-        for ($i = 0; $i < $maxLen; $i++) {
-            $rowLabel = $labels[$i] ?? null;
-
-            if ($rowLabel === null || $rowLabel === '') {
-                $rowLabel = (string) ($i + 1);
-            }
-
-            $row = [$rowLabel];
-
-            foreach ($this->seriesCollection->items as $series) {
-                $row[] = isset($series->values[$i])
-                    ? $this->formatNumber($series->values[$i])
-                    : '';
-            }
-
-            $rows[] = $row;
-        }
-
-        return ['columns' => $columns, 'rows' => $rows];
+        return 'Category';
     }
 }
