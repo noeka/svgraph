@@ -437,12 +437,7 @@ class BarChart extends AbstractSeriesChart
         $element->append(Tag::make('title')->append($tipText));
 
         $wrapper->add($this->buildLink($link, $id, $element));
-        $wrapper->tooltip(new Tooltip(
-            id: $id,
-            text: Tag::escapeText($tipText),
-            leftPct: $anchorX / $viewport->width * 100,
-            topPct: $anchorY / $viewport->height * 100,
-        ));
+        $wrapper->tooltip(Tooltip::at($id, $tipText, $anchorX, $anchorY, $viewport));
     }
 
     /**

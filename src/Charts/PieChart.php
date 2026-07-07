@@ -133,12 +133,7 @@ class PieChart extends AbstractChart
                 'vector-effect' => 'non-scaling-stroke',
             ])->append(Tag::make('title')->append($tipText));
             $wrapper->add($this->buildLink($only->link, $id, $circle));
-            $wrapper->tooltip(new Tooltip(
-                id: $id,
-                text: Tag::escapeText($tipText),
-                leftPct: $cx / $viewport->width * 100,
-                topPct: ($cy - $outerRadius) / $viewport->height * 100,
-            ));
+            $wrapper->tooltip(Tooltip::at($id, $tipText, $cx, $cy - $outerRadius, $viewport));
 
             if ($hasLegend) {
                 $this->addLegend($wrapper);
@@ -175,12 +170,7 @@ class PieChart extends AbstractChart
                 ? ($outerRadius + $innerRadius) / 2
                 : $outerRadius * 0.6;
             [$tipX, $tipY] = Path::polar($cx, $cy, $tipRadius, ($start + $end) / 2);
-            $wrapper->tooltip(new Tooltip(
-                id: $id,
-                text: Tag::escapeText($tipText),
-                leftPct: $tipX / $viewport->width * 100,
-                topPct: $tipY / $viewport->height * 100,
-            ));
+            $wrapper->tooltip(Tooltip::at($id, $tipText, $tipX, $tipY, $viewport));
             $angle += $sweep;
         }
 

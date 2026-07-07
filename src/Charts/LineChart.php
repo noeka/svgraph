@@ -717,13 +717,7 @@ class LineChart extends AbstractSeriesChart
             ];
             $group->append(Tag::make('ellipse', $hitAttrs)->append(Tag::make('title')->append($tipText)));
             $wrapper->add($hasLink ? $this->buildLink($p->link, $id, $group) : $group);
-            $wrapper->tooltip(new Tooltip(
-                id: $id,
-                text: Tag::escapeText($tipText),
-                leftPct: $x / $viewport->width * 100,
-                topPct: $y / $viewport->height * 100,
-                dataX: $this->showCrosshair ? $i : null,
-            ));
+            $wrapper->tooltip(Tooltip::at($id, $tipText, $x, $y, $viewport, $this->showCrosshair ? $i : null));
         }
     }
 
