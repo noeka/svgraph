@@ -10,7 +10,6 @@ use Noeka\Svgraph\Annotations\AnnotationLayer;
 use Noeka\Svgraph\Data\Axis;
 use Noeka\Svgraph\Data\ErrorDisplay;
 use Noeka\Svgraph\Data\Series;
-use Noeka\Svgraph\Data\SeriesCollection;
 use Noeka\Svgraph\Geometry\LogScale;
 use Noeka\Svgraph\Geometry\Path;
 use Noeka\Svgraph\Geometry\Scale;
@@ -21,10 +20,8 @@ use Noeka\Svgraph\Svg\Tag;
 use Noeka\Svgraph\Svg\Tooltip;
 use Noeka\Svgraph\Svg\Wrapper;
 
-class LineChart extends AbstractChart
+class LineChart extends AbstractSeriesChart
 {
-    protected SeriesCollection $seriesCollection;
-
     protected ?string $strokeColor = null;
     protected ?float $strokeWidth = null;
 
@@ -33,13 +30,8 @@ class LineChart extends AbstractChart
     protected float $fillOpacity = 0.15;
 
     protected bool $smooth = false;
-    protected bool $showAxes = false;
-    protected bool $showGrid = false;
     protected bool $showPoints = false;
     protected bool $showCrosshair = false;
-    protected bool $showLegend = false;
-
-    protected int $tickCount = 5;
 
     protected bool $useTimeAxis = false;
     protected ?string $timeAxisLocale = null;
@@ -55,32 +47,12 @@ class LineChart extends AbstractChart
     {
         parent::__construct();
         $this->variantClass = 'line';
-        $this->seriesCollection = new SeriesCollection();
     }
 
     /** @param iterable<mixed> $data */
     public function series(iterable $data): static
     {
-        $this->seriesCollection = new SeriesCollection([Series::from($data)]);
-
-        return $this;
-    }
-
-    /** @param iterable<mixed> $data */
-    public function data(iterable $data): static
-    {
-        return $this->series($data);
-    }
-
-    /**
-     * Append a series. Combine with `data()` (which sets the first) or call
-     * `addSeries()` repeatedly to build up the chart series-by-series.
-     */
-    public function addSeries(Series $series): static
-    {
-        $this->seriesCollection = $this->seriesCollection->with($series);
-
-        return $this;
+        return $this->data($data);
     }
 
     public function stroke(string $color, ?float $width = null): static
@@ -117,20 +89,6 @@ class LineChart extends AbstractChart
         return $this;
     }
 
-    public function axes(bool $on = true): static
-    {
-        $this->showAxes = $on;
-
-        return $this;
-    }
-
-    public function grid(bool $on = true): static
-    {
-        $this->showGrid = $on;
-
-        return $this;
-    }
-
     public function points(bool $on = true): static
     {
         $this->showPoints = $on;
@@ -154,13 +112,6 @@ class LineChart extends AbstractChart
         return $this;
     }
 
-    public function ticks(int $count): static
-    {
-        $this->tickCount = max(2, $count);
-
-        return $this;
-    }
-
     /**
      * Treat point x-values as datetimes. Series points carrying a
      * `DateTimeImmutable` (e.g. from `[[$dt, 10], [$dt2, 24]]` tuples) are
@@ -177,19 +128,6 @@ class LineChart extends AbstractChart
         $this->timeAxisLocale = $locale;
         $this->timeAxisTz = $tz !== null ? new \DateTimeZone($tz) : null;
         $this->timeAxisFormat = $format;
-
-        return $this;
-    }
-
-    /**
-     * Render a CSS-only toggle legend below the chart. Each entry is a
-     * `<label>` bound to a hidden checkbox; clicking an entry hides its
-     * series and dims the entry. State is page-local (no JS = no
-     * persistence) and the Y axis does not rescale to the remaining series.
-     */
-    public function legend(bool $on = true): static
-    {
-        $this->showLegend = $on;
 
         return $this;
     }
@@ -276,8 +214,7 @@ class LineChart extends AbstractChart
 
         $strokeWidth = $this->strokeWidth ?? $this->theme->strokeWidth;
 
-        $wrapper = new Wrapper($viewport, $this->aspectRatio, $this->variantClass, $this->theme);
-        $wrapper->setUserClass($this->cssClass);
+        $wrapper = $this->makeWrapper($viewport);
 
         if ($this->showGrid) {
             foreach ($this->buildGridLines($leftYScale, $viewport) as $gridLine) {
@@ -1121,16 +1058,6 @@ class LineChart extends AbstractChart
                 verticalAlign: 'bottom',
             ));
         }
-    }
-
-    protected function renderEmpty(): string
-    {
-        $viewport = new Viewport();
-        $wrapper = new Wrapper($viewport, $this->aspectRatio, $this->variantClass, $this->theme);
-        $wrapper->setUserClass($this->cssClass);
-        $this->applyAccessibility($wrapper);
-
-        return $wrapper->render();
     }
 
     #[\Override]

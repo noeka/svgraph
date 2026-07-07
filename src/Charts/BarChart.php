@@ -8,7 +8,6 @@ use Noeka\Svgraph\Annotations\AnnotationContext;
 use Noeka\Svgraph\Annotations\AnnotationLayer;
 use Noeka\Svgraph\Data\Link;
 use Noeka\Svgraph\Data\Series;
-use Noeka\Svgraph\Data\SeriesCollection;
 use Noeka\Svgraph\Geometry\Path;
 use Noeka\Svgraph\Geometry\Scale;
 use Noeka\Svgraph\Geometry\Viewport;
@@ -17,22 +16,16 @@ use Noeka\Svgraph\Svg\Tag;
 use Noeka\Svgraph\Svg\Tooltip;
 use Noeka\Svgraph\Svg\Wrapper;
 
-class BarChart extends AbstractChart
+class BarChart extends AbstractSeriesChart
 {
     private const string MODE_AUTO = 'auto';
     private const string MODE_GROUPED = 'grouped';
     private const string MODE_STACKED = 'stacked';
 
-    protected SeriesCollection $seriesCollection;
-
     protected ?string $color = null;
     protected float $gap = 0.2;
     protected bool $horizontal = false;
     protected float $cornerRadius = 0.0;
-    protected bool $showAxes = false;
-    protected bool $showGrid = false;
-    protected bool $showLegend = false;
-    protected int $tickCount = 5;
     protected bool $useColorPerBar = false;
 
     protected string $mode = self::MODE_AUTO;
@@ -42,28 +35,6 @@ class BarChart extends AbstractChart
         parent::__construct();
         $this->variantClass = 'bar';
         $this->aspectRatio = 2.0;
-        $this->seriesCollection = new SeriesCollection();
-    }
-
-    /** @param iterable<mixed> $data */
-    public function data(iterable $data): static
-    {
-        $this->seriesCollection = new SeriesCollection([Series::from($data)]);
-
-        return $this;
-    }
-
-    /**
-     * Append a series. The first call to `data()` (or `addSeries()` on an
-     * empty chart) seeds series 0; subsequent `addSeries()` calls append.
-     * Multi-series charts default to grouped layout — call `stacked()` to
-     * stack bars instead.
-     */
-    public function addSeries(Series $series): static
-    {
-        $this->seriesCollection = $this->seriesCollection->with($series);
-
-        return $this;
     }
 
     public function color(string $color): static
@@ -109,41 +80,6 @@ class BarChart extends AbstractChart
         return $this;
     }
 
-    public function axes(bool $on = true): static
-    {
-        $this->showAxes = $on;
-
-        return $this;
-    }
-
-    public function grid(bool $on = true): static
-    {
-        $this->showGrid = $on;
-
-        return $this;
-    }
-
-    public function ticks(int $count): static
-    {
-        $this->tickCount = max(2, $count);
-
-        return $this;
-    }
-
-    /**
-     * Render a CSS-only toggle legend below the chart. Each entry is a
-     * `<label>` bound to a hidden checkbox; clicking an entry hides its
-     * series and dims the entry. State is page-local (no JS = no
-     * persistence) and the value axis does not rescale to the remaining
-     * series.
-     */
-    public function legend(bool $on = true): static
-    {
-        $this->showLegend = $on;
-
-        return $this;
-    }
-
     /**
      * Place bars side-by-side per X tick across all series. Default for
      * multi-series charts.
@@ -173,14 +109,6 @@ class BarChart extends AbstractChart
         }
 
         return $this->horizontal ? $this->renderHorizontal() : $this->renderVertical();
-    }
-
-    private function renderEmpty(): string
-    {
-        $wrapper = $this->makeWrapper(new Viewport());
-        $this->applyAccessibility($wrapper);
-
-        return $wrapper->render();
     }
 
     protected function renderVertical(): string
@@ -713,14 +641,6 @@ class BarChart extends AbstractChart
         $negCursor[$slot] = $start;
 
         return [$start, $end];
-    }
-
-    private function makeWrapper(Viewport $viewport): Wrapper
-    {
-        $wrapper = new Wrapper($viewport, $this->aspectRatio, $this->variantClass, $this->theme);
-        $wrapper->setUserClass($this->cssClass);
-
-        return $wrapper;
     }
 
     private function verticalViewport(bool $hasLabels): Viewport
