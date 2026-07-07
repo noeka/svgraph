@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Noeka\Svgraph\Tests\Geometry;
 
+use LogicException;
 use Noeka\Svgraph\Geometry\Path;
 use PHPUnit\Framework\TestCase;
 
@@ -255,5 +256,54 @@ final class PathTest extends TestCase
         self::assertStringContainsString('M48,80 L52,80', $d);
         // Upper cap at y=20, from x=48 to x=52.
         self::assertStringContainsString('M48,20 L52,20', $d);
+    }
+
+    public function test_rounded_rect_top_rounds_upper_corners_only(): void
+    {
+        // Rect at (10, 20), 30 wide, 40 tall, radii 4/8, top side rounded.
+        $d = Path::roundedRect(10.0, 20.0, 30.0, 40.0, 4.0, 8.0, 'top');
+
+        self::assertSame(
+            'M10,60 L10,28 A4,8 0 0 1 14,20 L36,20 A4,8 0 0 1 40,28 L40,60 Z',
+            $d,
+        );
+    }
+
+    public function test_rounded_rect_bottom_rounds_lower_corners_only(): void
+    {
+        $d = Path::roundedRect(10.0, 20.0, 30.0, 40.0, 4.0, 8.0, 'bottom');
+
+        self::assertSame(
+            'M10,20 L40,20 L40,52 A4,8 0 0 1 36,60 L14,60 A4,8 0 0 1 10,52 Z',
+            $d,
+        );
+    }
+
+    public function test_rounded_rect_right_rounds_right_corners_only(): void
+    {
+        $d = Path::roundedRect(10.0, 20.0, 30.0, 40.0, 4.0, 8.0, 'right');
+
+        self::assertSame(
+            'M10,20 L36,20 A4,8 0 0 1 40,28 L40,52 A4,8 0 0 1 36,60 L10,60 Z',
+            $d,
+        );
+    }
+
+    public function test_rounded_rect_left_rounds_left_corners_only(): void
+    {
+        $d = Path::roundedRect(10.0, 20.0, 30.0, 40.0, 4.0, 8.0, 'left');
+
+        self::assertSame(
+            'M40,20 L40,60 L14,60 A4,8 0 0 1 10,52 L10,28 A4,8 0 0 1 14,20 Z',
+            $d,
+        );
+    }
+
+    public function test_rounded_rect_rejects_unknown_side(): void
+    {
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('Unknown rounded side: diagonal');
+
+        Path::roundedRect(0.0, 0.0, 10.0, 10.0, 1.0, 1.0, 'diagonal');
     }
 }

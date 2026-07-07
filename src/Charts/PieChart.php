@@ -76,11 +76,7 @@ class PieChart extends AbstractChart
             return $wrapper->render();
         }
 
-        $total = 0.0;
-
-        foreach ($this->slices as $slice) {
-            $total += max(0.0, $slice->value);
-        }
+        $total = $this->sliceTotal();
 
         if ($total <= 0.0) {
             $this->applyAccessibility($wrapper);
@@ -121,7 +117,7 @@ class PieChart extends AbstractChart
     ): void {
         if ($this->thickness === 0.0 && count($this->slices) === 1) {
             $only = $this->slices[0];
-            $color = $only->color ?? $this->theme->colorAt(0);
+            $color = $this->sliceColor($only, 0);
             $id = "{$chartId}-pt-0";
             $tipText = $this->tooltip($only->label, $only->value);
             $circle = Tag::make('circle', [
@@ -133,12 +129,7 @@ class PieChart extends AbstractChart
                 'vector-effect' => 'non-scaling-stroke',
             ])->append(Tag::make('title')->append($tipText));
             $wrapper->add($this->buildLink($only->link, $id, $circle));
-            $wrapper->tooltip(new Tooltip(
-                id: $id,
-                text: Tag::escapeText($tipText),
-                leftPct: $cx / $viewport->width * 100,
-                topPct: ($cy - $outerRadius) / $viewport->height * 100,
-            ));
+            $wrapper->tooltip(Tooltip::at($id, $tipText, $cx, $cy - $outerRadius, $viewport));
 
             if ($hasLegend) {
                 $this->addLegend($wrapper);
@@ -160,7 +151,7 @@ class PieChart extends AbstractChart
             $start = $angle;
             $end = $angle + $sweep;
 
-            $color = $slice->color ?? $this->theme->colorAt($i);
+            $color = $this->sliceColor($slice, $i);
             $d = Path::arc($cx, $cy, $outerRadius, $innerRadius, $start, $end);
             $id = "{$chartId}-pt-{$i}";
             $tipText = $this->tooltip($slice->label, $value);
@@ -175,12 +166,7 @@ class PieChart extends AbstractChart
                 ? ($outerRadius + $innerRadius) / 2
                 : $outerRadius * 0.6;
             [$tipX, $tipY] = Path::polar($cx, $cy, $tipRadius, ($start + $end) / 2);
-            $wrapper->tooltip(new Tooltip(
-                id: $id,
-                text: Tag::escapeText($tipText),
-                leftPct: $tipX / $viewport->width * 100,
-                topPct: $tipY / $viewport->height * 100,
-            ));
+            $wrapper->tooltip(Tooltip::at($id, $tipText, $tipX, $tipY, $viewport));
             $angle += $sweep;
         }
 
@@ -202,12 +188,6 @@ class PieChart extends AbstractChart
             return $this->defaultTitle() . ' (no data).';
         }
 
-        $total = 0.0;
-
-        foreach ($this->slices as $slice) {
-            $total += max(0.0, $slice->value);
-        }
-
         $count = count($this->slices);
 
         return sprintf(
@@ -215,7 +195,7 @@ class PieChart extends AbstractChart
             $this->defaultTitle(),
             $count,
             $count === 1 ? 'slice' : 'slices',
-            $this->formatNumber($total),
+            $this->formatNumber($this->sliceTotal()),
         );
     }
 
@@ -238,6 +218,29 @@ class PieChart extends AbstractChart
         return ['columns' => ['Slice', 'Value'], 'rows' => $rows];
     }
 
+    /**
+     * Sum of every non-negative slice value — negative inputs are clamped
+     * to zero, matching how slices are drawn.
+     */
+    private function sliceTotal(): float
+    {
+        $total = 0.0;
+
+        foreach ($this->slices as $slice) {
+            $total += max(0.0, $slice->value);
+        }
+
+        return $total;
+    }
+
+    /**
+     * Explicit Slice->color wins, then the theme palette by slice index.
+     */
+    private function sliceColor(Slice $slice, int $index): string
+    {
+        return $slice->color ?? $this->theme->colorAt($index);
+    }
+
     protected function addLegend(Wrapper $wrapper): void
     {
         $legendTopPercent = 86.0;
@@ -255,8 +258,7 @@ class PieChart extends AbstractChart
             $row = intdiv($i, $columns);
             $left = $col * $colWidth;
             $top = $legendTopPercent + $row * 6.0;
-            $color = $slice->color ?? $this->theme->colorAt($i);
-            $swatchColor = Css::color($color) ?? 'currentColor';
+            $swatchColor = Css::color($this->sliceColor($slice, $i)) ?? 'currentColor';
 
             $swatch = '<span style="display:inline-block;width:0.5em;height:0.5em;'
                 . 'border-radius:0.125em;margin-right:0.4em;vertical-align:middle;'

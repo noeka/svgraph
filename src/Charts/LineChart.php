@@ -10,7 +10,6 @@ use Noeka\Svgraph\Annotations\AnnotationLayer;
 use Noeka\Svgraph\Data\Axis;
 use Noeka\Svgraph\Data\ErrorDisplay;
 use Noeka\Svgraph\Data\Series;
-use Noeka\Svgraph\Data\SeriesCollection;
 use Noeka\Svgraph\Geometry\LogScale;
 use Noeka\Svgraph\Geometry\Path;
 use Noeka\Svgraph\Geometry\Scale;
@@ -21,11 +20,8 @@ use Noeka\Svgraph\Svg\Tag;
 use Noeka\Svgraph\Svg\Tooltip;
 use Noeka\Svgraph\Svg\Wrapper;
 
-class LineChart extends AbstractChart
+class LineChart extends AbstractSeriesChart
 {
-    protected SeriesCollection $seriesCollection;
-
-    protected ?string $strokeColor = null;
     protected ?float $strokeWidth = null;
 
     protected bool $fillEnabled = false;
@@ -33,13 +29,8 @@ class LineChart extends AbstractChart
     protected float $fillOpacity = 0.15;
 
     protected bool $smooth = false;
-    protected bool $showAxes = false;
-    protected bool $showGrid = false;
     protected bool $showPoints = false;
     protected bool $showCrosshair = false;
-    protected bool $showLegend = false;
-
-    protected int $tickCount = 5;
 
     protected bool $useTimeAxis = false;
     protected ?string $timeAxisLocale = null;
@@ -55,37 +46,17 @@ class LineChart extends AbstractChart
     {
         parent::__construct();
         $this->variantClass = 'line';
-        $this->seriesCollection = new SeriesCollection();
     }
 
     /** @param iterable<mixed> $data */
     public function series(iterable $data): static
     {
-        $this->seriesCollection = new SeriesCollection([Series::from($data)]);
-
-        return $this;
-    }
-
-    /** @param iterable<mixed> $data */
-    public function data(iterable $data): static
-    {
-        return $this->series($data);
-    }
-
-    /**
-     * Append a series. Combine with `data()` (which sets the first) or call
-     * `addSeries()` repeatedly to build up the chart series-by-series.
-     */
-    public function addSeries(Series $series): static
-    {
-        $this->seriesCollection = $this->seriesCollection->with($series);
-
-        return $this;
+        return $this->data($data);
     }
 
     public function stroke(string $color, ?float $width = null): static
     {
-        $this->strokeColor = $color;
+        $this->primarySeriesColor = $color;
 
         if ($width !== null) {
             $this->strokeWidth = $width;
@@ -117,20 +88,6 @@ class LineChart extends AbstractChart
         return $this;
     }
 
-    public function axes(bool $on = true): static
-    {
-        $this->showAxes = $on;
-
-        return $this;
-    }
-
-    public function grid(bool $on = true): static
-    {
-        $this->showGrid = $on;
-
-        return $this;
-    }
-
     public function points(bool $on = true): static
     {
         $this->showPoints = $on;
@@ -154,13 +111,6 @@ class LineChart extends AbstractChart
         return $this;
     }
 
-    public function ticks(int $count): static
-    {
-        $this->tickCount = max(2, $count);
-
-        return $this;
-    }
-
     /**
      * Treat point x-values as datetimes. Series points carrying a
      * `DateTimeImmutable` (e.g. from `[[$dt, 10], [$dt2, 24]]` tuples) are
@@ -177,19 +127,6 @@ class LineChart extends AbstractChart
         $this->timeAxisLocale = $locale;
         $this->timeAxisTz = $tz !== null ? new \DateTimeZone($tz) : null;
         $this->timeAxisFormat = $format;
-
-        return $this;
-    }
-
-    /**
-     * Render a CSS-only toggle legend below the chart. Each entry is a
-     * `<label>` bound to a hidden checkbox; clicking an entry hides its
-     * series and dims the entry. State is page-local (no JS = no
-     * persistence) and the Y axis does not rescale to the remaining series.
-     */
-    public function legend(bool $on = true): static
-    {
-        $this->showLegend = $on;
 
         return $this;
     }
@@ -276,8 +213,7 @@ class LineChart extends AbstractChart
 
         $strokeWidth = $this->strokeWidth ?? $this->theme->strokeWidth;
 
-        $wrapper = new Wrapper($viewport, $this->aspectRatio, $this->variantClass, $this->theme);
-        $wrapper->setUserClass($this->cssClass);
+        $wrapper = $this->makeWrapper($viewport);
 
         if ($this->showGrid) {
             foreach ($this->buildGridLines($leftYScale, $viewport) as $gridLine) {
@@ -331,9 +267,7 @@ class LineChart extends AbstractChart
 
         $this->emitAnnotationLabels($wrapper, $annotationContext);
 
-        if ($this->showLegend) {
-            $wrapper->setLegend($this->buildLegendEntries());
-        }
+        $this->applyLegend($wrapper);
 
         $this->applyAccessibility($wrapper);
 
@@ -501,27 +435,6 @@ class LineChart extends AbstractChart
         return $xs;
     }
 
-    /**
-     * @return list<array{id: string, seriesIndex: int, name: string, color: string}>
-     */
-    private function buildLegendEntries(): array
-    {
-        $chartId = $this->chartId();
-        $entries = [];
-
-        foreach ($this->seriesCollection->items as $i => $series) {
-            $name = $series->name !== '' ? $series->name : 'Series ' . ($i + 1);
-            $entries[] = [
-                'id' => "{$chartId}-s{$i}",
-                'seriesIndex' => $i,
-                'name' => $name,
-                'color' => $this->resolveColor($series, $i),
-            ];
-        }
-
-        return $entries;
-    }
-
     private function renderSeries(
         Wrapper $wrapper,
         Series $series,
@@ -536,7 +449,7 @@ class LineChart extends AbstractChart
             return;
         }
 
-        $color = $this->resolveColor($series, $index);
+        $color = $this->resolveSeriesColor($series, $index);
         $points = [];
 
         foreach ($series->values as $i => $v) {
@@ -804,13 +717,7 @@ class LineChart extends AbstractChart
             ];
             $group->append(Tag::make('ellipse', $hitAttrs)->append(Tag::make('title')->append($tipText)));
             $wrapper->add($hasLink ? $this->buildLink($p->link, $id, $group) : $group);
-            $wrapper->tooltip(new Tooltip(
-                id: $id,
-                text: Tag::escapeText($tipText),
-                leftPct: $x / $viewport->width * 100,
-                topPct: $y / $viewport->height * 100,
-                dataX: $this->showCrosshair ? $i : null,
-            ));
+            $wrapper->tooltip(Tooltip::at($id, $tipText, $x, $y, $viewport, $this->showCrosshair ? $i : null));
         }
     }
 
@@ -848,7 +755,7 @@ class LineChart extends AbstractChart
             [$xScale->map($lastIndex), $yScale->map($yEnd)],
         ];
 
-        $color = $this->resolveColor($series, $index);
+        $color = $this->resolveSeriesColor($series, $index);
         $title = sprintf(
             'Trend: slope %s, R² %s',
             $this->formatNumber($stats['slope']),
@@ -875,38 +782,6 @@ class LineChart extends AbstractChart
     }
 
     /**
-     * Per-series color: explicit Series->color wins, then `->stroke()` for
-     * series 0 (the chart-level shortcut), then the theme palette.
-     */
-    private function resolveColor(Series $series, int $index): string
-    {
-        if ($series->color !== null) {
-            return $series->color;
-        }
-
-        if ($index === 0 && $this->strokeColor !== null) {
-            return $this->strokeColor;
-        }
-
-        return $this->theme->colorAt($index);
-    }
-
-    /**
-     * Prefix tooltip with the series name when set so multi-series points
-     * can be told apart.
-     */
-    private function labelFor(Series $series, ?string $pointLabel): ?string
-    {
-        if ($series->name === '') {
-            return $pointLabel;
-        }
-
-        return $pointLabel === null || $pointLabel === ''
-            ? $series->name
-            : "{$series->name} — {$pointLabel}";
-    }
-
-    /**
      * @return list<Tag>
      */
     protected function buildGridLines(Scale $yScale, Viewport $viewport): array
@@ -915,15 +790,7 @@ class LineChart extends AbstractChart
 
         foreach ($yScale->ticks($this->tickCount) as $tick) {
             $y = $yScale->map($tick);
-            $lines[] = Tag::void('line', [
-                'x1' => Tag::formatFloat($viewport->plotLeft()),
-                'x2' => Tag::formatFloat($viewport->plotRight()),
-                'y1' => Tag::formatFloat($y),
-                'y2' => Tag::formatFloat($y),
-                'stroke' => $this->theme->gridColor,
-                'stroke-width' => '1',
-                'vector-effect' => 'non-scaling-stroke',
-            ]);
+            $lines[] = $this->plotLine($viewport->plotLeft(), $y, $viewport->plotRight(), $y, $this->theme->gridColor);
         }
 
         return $lines;
@@ -999,38 +866,13 @@ class LineChart extends AbstractChart
      */
     protected function buildAxisLines(Viewport $viewport, bool $secondary = false): array
     {
-        $rightAxisColor = $secondary ? $this->resolveAxisColor(Axis::Right) : $this->theme->axisColor;
         $lines = [
-            Tag::void('line', [
-                'x1' => Tag::formatFloat($viewport->plotLeft()),
-                'x2' => Tag::formatFloat($viewport->plotLeft()),
-                'y1' => Tag::formatFloat($viewport->plotTop()),
-                'y2' => Tag::formatFloat($viewport->plotBottom()),
-                'stroke' => $this->theme->axisColor,
-                'stroke-width' => '1',
-                'vector-effect' => 'non-scaling-stroke',
-            ]),
-            Tag::void('line', [
-                'x1' => Tag::formatFloat($viewport->plotLeft()),
-                'x2' => Tag::formatFloat($viewport->plotRight()),
-                'y1' => Tag::formatFloat($viewport->plotBottom()),
-                'y2' => Tag::formatFloat($viewport->plotBottom()),
-                'stroke' => $this->theme->axisColor,
-                'stroke-width' => '1',
-                'vector-effect' => 'non-scaling-stroke',
-            ]),
+            $this->plotLine($viewport->plotLeft(), $viewport->plotTop(), $viewport->plotLeft(), $viewport->plotBottom(), $this->theme->axisColor),
+            $this->plotLine($viewport->plotLeft(), $viewport->plotBottom(), $viewport->plotRight(), $viewport->plotBottom(), $this->theme->axisColor),
         ];
 
         if ($secondary) {
-            $lines[] = Tag::void('line', [
-                'x1' => Tag::formatFloat($viewport->plotRight()),
-                'x2' => Tag::formatFloat($viewport->plotRight()),
-                'y1' => Tag::formatFloat($viewport->plotTop()),
-                'y2' => Tag::formatFloat($viewport->plotBottom()),
-                'stroke' => $rightAxisColor,
-                'stroke-width' => '1',
-                'vector-effect' => 'non-scaling-stroke',
-            ]);
+            $lines[] = $this->plotLine($viewport->plotRight(), $viewport->plotTop(), $viewport->plotRight(), $viewport->plotBottom(), $this->resolveAxisColor(Axis::Right));
         }
 
         return $lines;
@@ -1046,7 +888,7 @@ class LineChart extends AbstractChart
     {
         foreach ($this->seriesCollection->items as $i => $series) {
             if ($series->axis === $axis && !$series->isEmpty()) {
-                return $this->resolveColor($series, $i);
+                return $this->resolveSeriesColor($series, $i);
             }
         }
 
@@ -1103,15 +945,7 @@ class LineChart extends AbstractChart
             return;
         }
 
-        foreach ($this->seriesCollection->commonLabels() as $i => $label) {
-            if ($label === null) {
-                continue;
-            }
-
-            if ($label === '') {
-                continue;
-            }
-
+        foreach ($this->filteredCommonLabels() as $i => $label) {
             $x = $xScale->map((float) $i);
             $wrapper->label(new Label(
                 text: $label,
@@ -1121,16 +955,6 @@ class LineChart extends AbstractChart
                 verticalAlign: 'bottom',
             ));
         }
-    }
-
-    protected function renderEmpty(): string
-    {
-        $viewport = new Viewport();
-        $wrapper = new Wrapper($viewport, $this->aspectRatio, $this->variantClass, $this->theme);
-        $wrapper->setUserClass($this->cssClass);
-        $this->applyAccessibility($wrapper);
-
-        return $wrapper->render();
     }
 
     #[\Override]
@@ -1167,10 +991,9 @@ class LineChart extends AbstractChart
                 continue;
             }
 
-            $name = $series->name !== '' ? $series->name : 'Series ' . ($i + 1);
             $trends[] = sprintf(
                 '%s trend: slope %s, R² %s',
-                $name,
+                $this->seriesName($series, $i),
                 $this->formatNumber($stats['slope']),
                 $this->formatNumber($stats['r2']),
             );
@@ -1179,52 +1002,20 @@ class LineChart extends AbstractChart
         return $trends === [] ? $base : $base . ' ' . implode('. ', $trends) . '.';
     }
 
+    /**
+     * Append the error range to the plain value when the point carries one.
+     */
     #[\Override]
-    protected function buildDataTable(): array
+    protected function dataTableCell(Series $series, int $i): string
     {
-        if ($this->seriesCollection->isEmpty()) {
-            return ['columns' => [], 'rows' => []];
+        $cell = $this->formatNumber($series->values[$i]);
+        $point = $series->points[$i] ?? null;
+
+        if ($point !== null && $point->hasRange()) {
+            $cell .= ' (' . $this->formatNumber((float) $point->rangeMin())
+                . '–' . $this->formatNumber((float) $point->rangeMax()) . ')';
         }
 
-        $columns = ['Label'];
-
-        foreach ($this->seriesCollection->items as $i => $series) {
-            $columns[] = $series->name !== '' ? $series->name : 'Series ' . ($i + 1);
-        }
-
-        $labels = $this->seriesCollection->commonLabels();
-        $maxLen = $this->seriesCollection->maxLength();
-        $rows = [];
-
-        for ($i = 0; $i < $maxLen; $i++) {
-            $rowLabel = $labels[$i] ?? null;
-
-            if ($rowLabel === null || $rowLabel === '') {
-                $rowLabel = (string) ($i + 1);
-            }
-
-            $row = [$rowLabel];
-
-            foreach ($this->seriesCollection->items as $series) {
-                if (!isset($series->values[$i])) {
-                    $row[] = '';
-                    continue;
-                }
-
-                $cell = $this->formatNumber($series->values[$i]);
-                $point = $series->points[$i] ?? null;
-
-                if ($point !== null && $point->hasRange()) {
-                    $cell .= ' (' . $this->formatNumber((float) $point->rangeMin())
-                        . '–' . $this->formatNumber((float) $point->rangeMax()) . ')';
-                }
-
-                $row[] = $cell;
-            }
-
-            $rows[] = $row;
-        }
-
-        return ['columns' => $columns, 'rows' => $rows];
+        return $cell;
     }
 }

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Noeka\Svgraph\Svg;
 
+use Noeka\Svgraph\Geometry\Viewport;
+
 /**
  * A single CSS-hover tooltip to be rendered inside the chart wrapper.
  *
@@ -33,4 +35,26 @@ final readonly class Tooltip
         public float $topPct,
         public ?int $dataX = null,
     ) {}
+
+    /**
+     * Build a tooltip anchored at a viewport coordinate, converting it to
+     * the wrapper-relative percentages the constructor expects. `$text` is
+     * escaped here — pass it raw.
+     */
+    public static function at(
+        string $id,
+        string $text,
+        float $x,
+        float $y,
+        Viewport $viewport,
+        ?int $dataX = null,
+    ): self {
+        return new self(
+            id: $id,
+            text: Tag::escapeText($text),
+            leftPct: $x / $viewport->width * 100,
+            topPct: $y / $viewport->height * 100,
+            dataX: $dataX,
+        );
+    }
 }

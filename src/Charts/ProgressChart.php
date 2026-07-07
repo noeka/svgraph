@@ -112,12 +112,7 @@ final class ProgressChart extends AbstractChart
                 'vector-effect' => 'non-scaling-stroke',
                 'tabindex' => '0',
             ])->append(Tag::make('title')->append($title)));
-            $wrapper->tooltip(new Tooltip(
-                id: $id,
-                text: Tag::escapeText($title),
-                leftPct: ($fraction * 100) / $viewport->width * 100,
-                topPct: ($height / 2) / $viewport->height * 100,
-            ));
+            $wrapper->tooltip(Tooltip::at($id, $title, $fraction * 100, $height / 2, $viewport));
         }
 
         if ($this->showValue) {

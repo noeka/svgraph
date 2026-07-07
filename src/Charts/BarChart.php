@@ -7,8 +7,7 @@ namespace Noeka\Svgraph\Charts;
 use Noeka\Svgraph\Annotations\AnnotationContext;
 use Noeka\Svgraph\Annotations\AnnotationLayer;
 use Noeka\Svgraph\Data\Link;
-use Noeka\Svgraph\Data\Series;
-use Noeka\Svgraph\Data\SeriesCollection;
+use Noeka\Svgraph\Geometry\Path;
 use Noeka\Svgraph\Geometry\Scale;
 use Noeka\Svgraph\Geometry\Viewport;
 use Noeka\Svgraph\Svg\Label;
@@ -16,22 +15,15 @@ use Noeka\Svgraph\Svg\Tag;
 use Noeka\Svgraph\Svg\Tooltip;
 use Noeka\Svgraph\Svg\Wrapper;
 
-class BarChart extends AbstractChart
+class BarChart extends AbstractSeriesChart
 {
     private const string MODE_AUTO = 'auto';
     private const string MODE_GROUPED = 'grouped';
     private const string MODE_STACKED = 'stacked';
 
-    protected SeriesCollection $seriesCollection;
-
-    protected ?string $color = null;
     protected float $gap = 0.2;
     protected bool $horizontal = false;
     protected float $cornerRadius = 0.0;
-    protected bool $showAxes = false;
-    protected bool $showGrid = false;
-    protected bool $showLegend = false;
-    protected int $tickCount = 5;
     protected bool $useColorPerBar = false;
 
     protected string $mode = self::MODE_AUTO;
@@ -41,33 +33,11 @@ class BarChart extends AbstractChart
         parent::__construct();
         $this->variantClass = 'bar';
         $this->aspectRatio = 2.0;
-        $this->seriesCollection = new SeriesCollection();
-    }
-
-    /** @param iterable<mixed> $data */
-    public function data(iterable $data): static
-    {
-        $this->seriesCollection = new SeriesCollection([Series::from($data)]);
-
-        return $this;
-    }
-
-    /**
-     * Append a series. The first call to `data()` (or `addSeries()` on an
-     * empty chart) seeds series 0; subsequent `addSeries()` calls append.
-     * Multi-series charts default to grouped layout — call `stacked()` to
-     * stack bars instead.
-     */
-    public function addSeries(Series $series): static
-    {
-        $this->seriesCollection = $this->seriesCollection->with($series);
-
-        return $this;
     }
 
     public function color(string $color): static
     {
-        $this->color = $color;
+        $this->primarySeriesColor = $color;
 
         return $this;
     }
@@ -108,41 +78,6 @@ class BarChart extends AbstractChart
         return $this;
     }
 
-    public function axes(bool $on = true): static
-    {
-        $this->showAxes = $on;
-
-        return $this;
-    }
-
-    public function grid(bool $on = true): static
-    {
-        $this->showGrid = $on;
-
-        return $this;
-    }
-
-    public function ticks(int $count): static
-    {
-        $this->tickCount = max(2, $count);
-
-        return $this;
-    }
-
-    /**
-     * Render a CSS-only toggle legend below the chart. Each entry is a
-     * `<label>` bound to a hidden checkbox; clicking an entry hides its
-     * series and dims the entry. State is page-local (no JS = no
-     * persistence) and the value axis does not rescale to the remaining
-     * series.
-     */
-    public function legend(bool $on = true): static
-    {
-        $this->showLegend = $on;
-
-        return $this;
-    }
-
     /**
      * Place bars side-by-side per X tick across all series. Default for
      * multi-series charts.
@@ -174,14 +109,6 @@ class BarChart extends AbstractChart
         return $this->horizontal ? $this->renderHorizontal() : $this->renderVertical();
     }
 
-    private function renderEmpty(): string
-    {
-        $wrapper = $this->makeWrapper(new Viewport());
-        $this->applyAccessibility($wrapper);
-
-        return $wrapper->render();
-    }
-
     protected function renderVertical(): string
     {
         $hasLabels = $this->seriesCollection->hasLabels();
@@ -205,7 +132,7 @@ class BarChart extends AbstractChart
         $baseY = $yScale->map(0.0);
 
         $this->emitHorizontalGridLines($wrapper, $viewport, $yScale);
-        $this->markInteractivity($wrapper);
+        $wrapper->markHasSeriesElements();
 
         $annotationContext = new AnnotationContext(
             viewport: $viewport,
@@ -253,7 +180,7 @@ class BarChart extends AbstractChart
         $slotHeight = $viewport->plotHeight() / $maxLen;
 
         $this->emitVerticalGridLines($wrapper, $viewport, $xScale);
-        $this->markInteractivity($wrapper);
+        $wrapper->markHasSeriesElements();
 
         $annotationContext = new AnnotationContext(
             viewport: $viewport,
@@ -510,12 +437,7 @@ class BarChart extends AbstractChart
         $element->append(Tag::make('title')->append($tipText));
 
         $wrapper->add($this->buildLink($link, $id, $element));
-        $wrapper->tooltip(new Tooltip(
-            id: $id,
-            text: Tag::escapeText($tipText),
-            leftPct: $anchorX / $viewport->width * 100,
-            topPct: $anchorY / $viewport->height * 100,
-        ));
+        $wrapper->tooltip(Tooltip::at($id, $tipText, $anchorX, $anchorY, $viewport));
     }
 
     /**
@@ -538,7 +460,7 @@ class BarChart extends AbstractChart
             if ($rx > 0.0 && $ry > 0.0) {
                 return Tag::make('path', [
                     'class' => "series-{$seriesIndex}",
-                    'd' => $this->barPath($x, $y, $width, $height, $rx, $ry, $roundedSide),
+                    'd' => Path::roundedRect($x, $y, $width, $height, $rx, $ry, $roundedSide),
                     'fill' => $color,
                     'vector-effect' => 'non-scaling-stroke',
                 ]);
@@ -584,58 +506,6 @@ class BarChart extends AbstractChart
         $rx = max($rx, 0.0);
 
         return [$rx, $rx * $aspect];
-    }
-
-    /**
-     * Build the path "d" attribute for a rectangle with rounded corners
-     * along a single side. Winding is clockwise so the fill-rule produces
-     * a filled shape.
-     */
-    private function barPath(
-        float $x,
-        float $y,
-        float $width,
-        float $height,
-        float $rx,
-        float $ry,
-        string $roundedSide,
-    ): string {
-        $f = static fn(float $v): string => Tag::formatFloat($v);
-
-        $x2 = $x + $width;
-        $y2 = $y + $height;
-
-        return match ($roundedSide) {
-            'top' => 'M' . $f($x) . ',' . $f($y2)
-                . ' L' . $f($x) . ',' . $f($y + $ry)
-                . ' A' . $f($rx) . ',' . $f($ry) . ' 0 0 1 ' . $f($x + $rx) . ',' . $f($y)
-                . ' L' . $f($x2 - $rx) . ',' . $f($y)
-                . ' A' . $f($rx) . ',' . $f($ry) . ' 0 0 1 ' . $f($x2) . ',' . $f($y + $ry)
-                . ' L' . $f($x2) . ',' . $f($y2)
-                . ' Z',
-            'bottom' => 'M' . $f($x) . ',' . $f($y)
-                . ' L' . $f($x2) . ',' . $f($y)
-                . ' L' . $f($x2) . ',' . $f($y2 - $ry)
-                . ' A' . $f($rx) . ',' . $f($ry) . ' 0 0 1 ' . $f($x2 - $rx) . ',' . $f($y2)
-                . ' L' . $f($x + $rx) . ',' . $f($y2)
-                . ' A' . $f($rx) . ',' . $f($ry) . ' 0 0 1 ' . $f($x) . ',' . $f($y2 - $ry)
-                . ' Z',
-            'right' => 'M' . $f($x) . ',' . $f($y)
-                . ' L' . $f($x2 - $rx) . ',' . $f($y)
-                . ' A' . $f($rx) . ',' . $f($ry) . ' 0 0 1 ' . $f($x2) . ',' . $f($y + $ry)
-                . ' L' . $f($x2) . ',' . $f($y2 - $ry)
-                . ' A' . $f($rx) . ',' . $f($ry) . ' 0 0 1 ' . $f($x2 - $rx) . ',' . $f($y2)
-                . ' L' . $f($x) . ',' . $f($y2)
-                . ' Z',
-            'left' => 'M' . $f($x2) . ',' . $f($y)
-                . ' L' . $f($x2) . ',' . $f($y2)
-                . ' L' . $f($x + $rx) . ',' . $f($y2)
-                . ' A' . $f($rx) . ',' . $f($ry) . ' 0 0 1 ' . $f($x) . ',' . $f($y2 - $ry)
-                . ' L' . $f($x) . ',' . $f($y + $ry)
-                . ' A' . $f($rx) . ',' . $f($ry) . ' 0 0 1 ' . $f($x + $rx) . ',' . $f($y)
-                . ' Z',
-            default => throw new \LogicException("Unknown rounded side: {$roundedSide}"),
-        };
     }
 
     private function verticalRoundedSide(float $value): string
@@ -766,14 +636,6 @@ class BarChart extends AbstractChart
         return [$start, $end];
     }
 
-    private function makeWrapper(Viewport $viewport): Wrapper
-    {
-        $wrapper = new Wrapper($viewport, $this->aspectRatio, $this->variantClass, $this->theme);
-        $wrapper->setUserClass($this->cssClass);
-
-        return $wrapper;
-    }
-
     private function verticalViewport(bool $hasLabels): Viewport
     {
         $hasAxesOrGrid = $this->showAxes || $this->showGrid;
@@ -844,7 +706,7 @@ class BarChart extends AbstractChart
 
         foreach ($yScale->ticks($this->tickCount) as $tick) {
             $y = $yScale->map($tick);
-            $wrapper->add($this->gridLine($viewport->plotLeft(), $y, $viewport->plotRight(), $y));
+            $wrapper->add($this->plotLine($viewport->plotLeft(), $y, $viewport->plotRight(), $y, $this->theme->gridColor));
         }
     }
 
@@ -856,21 +718,8 @@ class BarChart extends AbstractChart
 
         foreach ($xScale->ticks($this->tickCount) as $tick) {
             $x = $xScale->map($tick);
-            $wrapper->add($this->gridLine($x, $viewport->plotTop(), $x, $viewport->plotBottom()));
+            $wrapper->add($this->plotLine($x, $viewport->plotTop(), $x, $viewport->plotBottom(), $this->theme->gridColor));
         }
-    }
-
-    private function gridLine(float $x1, float $y1, float $x2, float $y2): Tag
-    {
-        return Tag::void('line', [
-            'x1' => Tag::formatFloat($x1),
-            'x2' => Tag::formatFloat($x2),
-            'y1' => Tag::formatFloat($y1),
-            'y2' => Tag::formatFloat($y2),
-            'stroke' => $this->theme->gridColor,
-            'stroke-width' => '1',
-            'vector-effect' => 'non-scaling-stroke',
-        ]);
     }
 
     private function emitVerticalAxis(Wrapper $wrapper, Viewport $viewport, Scale $yScale, float $baseY): void
@@ -879,15 +728,7 @@ class BarChart extends AbstractChart
             return;
         }
 
-        $wrapper->add(Tag::void('line', [
-            'x1' => Tag::formatFloat($viewport->plotLeft()),
-            'x2' => Tag::formatFloat($viewport->plotRight()),
-            'y1' => Tag::formatFloat($baseY),
-            'y2' => Tag::formatFloat($baseY),
-            'stroke' => $this->theme->axisColor,
-            'stroke-width' => '1',
-            'vector-effect' => 'non-scaling-stroke',
-        ]));
+        $wrapper->add($this->plotLine($viewport->plotLeft(), $baseY, $viewport->plotRight(), $baseY, $this->theme->axisColor));
 
         foreach ($yScale->ticks($this->tickCount) as $tick) {
             $wrapper->label(new Label(
@@ -919,7 +760,7 @@ class BarChart extends AbstractChart
 
     private function emitBottomCategoryLabels(Wrapper $wrapper, Viewport $viewport, float $slotWidth): void
     {
-        foreach ($this->visibleCategoryLabels() as $i => $label) {
+        foreach ($this->filteredCommonLabels() as $i => $label) {
             $wrapper->label(new Label(
                 text: $label,
                 left: $viewport->plotLeft() + ($i + 0.5) * $slotWidth,
@@ -932,7 +773,7 @@ class BarChart extends AbstractChart
 
     private function emitLeftCategoryLabels(Wrapper $wrapper, Viewport $viewport, float $slotHeight): void
     {
-        foreach ($this->visibleCategoryLabels() as $i => $label) {
+        foreach ($this->filteredCommonLabels() as $i => $label) {
             $wrapper->label(new Label(
                 text: $label,
                 left: 0,
@@ -943,101 +784,9 @@ class BarChart extends AbstractChart
         }
     }
 
-    /**
-     * @return array<int, string>
-     */
-    private function visibleCategoryLabels(): array
-    {
-        if (!$this->seriesCollection->hasLabels()) {
-            return [];
-        }
-
-        $labels = [];
-
-        foreach ($this->seriesCollection->commonLabels() as $i => $label) {
-            if ($label === null) {
-                continue;
-            }
-
-            if ($label === '') {
-                continue;
-            }
-
-            $labels[$i] = $label;
-        }
-
-        return $labels;
-    }
-
-    private function markInteractivity(Wrapper $wrapper): void
-    {
-        $wrapper->markHasSeriesElements();
-    }
-
-    private function applyLegend(Wrapper $wrapper): void
-    {
-        if (!$this->showLegend) {
-            return;
-        }
-
-        $wrapper->setLegend($this->buildLegendEntries());
-    }
-
     private function barId(int $seriesIndex, int $pointIndex): string
     {
         return "{$this->chartId()}-s{$seriesIndex}-pt-{$pointIndex}";
-    }
-
-    /**
-     * @return list<array{id: string, seriesIndex: int, name: string, color: string}>
-     */
-    private function buildLegendEntries(): array
-    {
-        $chartId = $this->chartId();
-        $entries = [];
-
-        foreach ($this->seriesCollection->items as $i => $series) {
-            $name = $series->name !== '' ? $series->name : 'Series ' . ($i + 1);
-            $entries[] = [
-                'id' => "{$chartId}-s{$i}",
-                'seriesIndex' => $i,
-                'name' => $name,
-                'color' => $this->resolveSeriesColor($series, $i),
-            ];
-        }
-
-        return $entries;
-    }
-
-    /**
-     * Per-series color: explicit Series->color wins, then chart-level
-     * `->color()` for series 0 (so single-series `Chart::bar()->color()`
-     * stays ergonomic), then the theme palette.
-     */
-    private function resolveSeriesColor(Series $series, int $index): string
-    {
-        if ($series->color !== null) {
-            return $series->color;
-        }
-
-        if ($index === 0 && $this->color !== null) {
-            return $this->color;
-        }
-
-        return $this->theme->colorAt($index);
-    }
-
-    private function labelFor(Series $series, ?string $pointLabel): ?string
-    {
-        if ($series->name === '') {
-            return $pointLabel;
-        }
-
-        if ($pointLabel === null || $pointLabel === '') {
-            return $series->name;
-        }
-
-        return "{$series->name} — {$pointLabel}";
     }
 
     #[\Override]
@@ -1070,40 +819,8 @@ class BarChart extends AbstractChart
     }
 
     #[\Override]
-    protected function buildDataTable(): array
+    protected function dataTableRowHeader(): string
     {
-        if ($this->seriesCollection->isEmpty()) {
-            return ['columns' => [], 'rows' => []];
-        }
-
-        $columns = ['Category'];
-
-        foreach ($this->seriesCollection->items as $i => $series) {
-            $columns[] = $series->name !== '' ? $series->name : 'Series ' . ($i + 1);
-        }
-
-        $labels = $this->seriesCollection->commonLabels();
-        $maxLen = $this->seriesCollection->maxLength();
-        $rows = [];
-
-        for ($i = 0; $i < $maxLen; $i++) {
-            $rowLabel = $labels[$i] ?? null;
-
-            if ($rowLabel === null || $rowLabel === '') {
-                $rowLabel = (string) ($i + 1);
-            }
-
-            $row = [$rowLabel];
-
-            foreach ($this->seriesCollection->items as $series) {
-                $row[] = isset($series->values[$i])
-                    ? $this->formatNumber($series->values[$i])
-                    : '';
-            }
-
-            $rows[] = $row;
-        }
-
-        return ['columns' => $columns, 'rows' => $rows];
+        return 'Category';
     }
 }
