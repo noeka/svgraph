@@ -9,6 +9,7 @@ use Noeka\Svgraph\Annotations\AnnotationLayer;
 use Noeka\Svgraph\Data\Link;
 use Noeka\Svgraph\Data\Series;
 use Noeka\Svgraph\Data\SeriesCollection;
+use Noeka\Svgraph\Geometry\Path;
 use Noeka\Svgraph\Geometry\Scale;
 use Noeka\Svgraph\Geometry\Viewport;
 use Noeka\Svgraph\Svg\Label;
@@ -538,7 +539,7 @@ class BarChart extends AbstractChart
             if ($rx > 0.0 && $ry > 0.0) {
                 return Tag::make('path', [
                     'class' => "series-{$seriesIndex}",
-                    'd' => $this->barPath($x, $y, $width, $height, $rx, $ry, $roundedSide),
+                    'd' => Path::roundedRect($x, $y, $width, $height, $rx, $ry, $roundedSide),
                     'fill' => $color,
                     'vector-effect' => 'non-scaling-stroke',
                 ]);
@@ -584,58 +585,6 @@ class BarChart extends AbstractChart
         $rx = max($rx, 0.0);
 
         return [$rx, $rx * $aspect];
-    }
-
-    /**
-     * Build the path "d" attribute for a rectangle with rounded corners
-     * along a single side. Winding is clockwise so the fill-rule produces
-     * a filled shape.
-     */
-    private function barPath(
-        float $x,
-        float $y,
-        float $width,
-        float $height,
-        float $rx,
-        float $ry,
-        string $roundedSide,
-    ): string {
-        $f = static fn(float $v): string => Tag::formatFloat($v);
-
-        $x2 = $x + $width;
-        $y2 = $y + $height;
-
-        return match ($roundedSide) {
-            'top' => 'M' . $f($x) . ',' . $f($y2)
-                . ' L' . $f($x) . ',' . $f($y + $ry)
-                . ' A' . $f($rx) . ',' . $f($ry) . ' 0 0 1 ' . $f($x + $rx) . ',' . $f($y)
-                . ' L' . $f($x2 - $rx) . ',' . $f($y)
-                . ' A' . $f($rx) . ',' . $f($ry) . ' 0 0 1 ' . $f($x2) . ',' . $f($y + $ry)
-                . ' L' . $f($x2) . ',' . $f($y2)
-                . ' Z',
-            'bottom' => 'M' . $f($x) . ',' . $f($y)
-                . ' L' . $f($x2) . ',' . $f($y)
-                . ' L' . $f($x2) . ',' . $f($y2 - $ry)
-                . ' A' . $f($rx) . ',' . $f($ry) . ' 0 0 1 ' . $f($x2 - $rx) . ',' . $f($y2)
-                . ' L' . $f($x + $rx) . ',' . $f($y2)
-                . ' A' . $f($rx) . ',' . $f($ry) . ' 0 0 1 ' . $f($x) . ',' . $f($y2 - $ry)
-                . ' Z',
-            'right' => 'M' . $f($x) . ',' . $f($y)
-                . ' L' . $f($x2 - $rx) . ',' . $f($y)
-                . ' A' . $f($rx) . ',' . $f($ry) . ' 0 0 1 ' . $f($x2) . ',' . $f($y + $ry)
-                . ' L' . $f($x2) . ',' . $f($y2 - $ry)
-                . ' A' . $f($rx) . ',' . $f($ry) . ' 0 0 1 ' . $f($x2 - $rx) . ',' . $f($y2)
-                . ' L' . $f($x) . ',' . $f($y2)
-                . ' Z',
-            'left' => 'M' . $f($x2) . ',' . $f($y)
-                . ' L' . $f($x2) . ',' . $f($y2)
-                . ' L' . $f($x + $rx) . ',' . $f($y2)
-                . ' A' . $f($rx) . ',' . $f($ry) . ' 0 0 1 ' . $f($x) . ',' . $f($y2 - $ry)
-                . ' L' . $f($x) . ',' . $f($y + $ry)
-                . ' A' . $f($rx) . ',' . $f($ry) . ' 0 0 1 ' . $f($x + $rx) . ',' . $f($y)
-                . ' Z',
-            default => throw new \LogicException("Unknown rounded side: {$roundedSide}"),
-        };
     }
 
     private function verticalRoundedSide(float $value): string

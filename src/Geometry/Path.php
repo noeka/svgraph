@@ -210,6 +210,61 @@ final class Path
     }
 
     /**
+     * Rectangle with the two corners along a single `$side` rounded, as a
+     * path "d" attribute. Winding is clockwise so the fill-rule produces a
+     * filled shape. `$side` is one of `top`, `bottom`, `left`, `right`.
+     *
+     * The caller is responsible for clamping `$rx`/`$ry` to the rectangle's
+     * bounds; the path is emitted with the radii as given.
+     */
+    public static function roundedRect(
+        float $x,
+        float $y,
+        float $width,
+        float $height,
+        float $rx,
+        float $ry,
+        string $side,
+    ): string {
+        $f = static fn(float $v): string => Tag::formatFloat($v);
+
+        $x2 = $x + $width;
+        $y2 = $y + $height;
+
+        return match ($side) {
+            'top' => 'M' . $f($x) . ',' . $f($y2)
+                . ' L' . $f($x) . ',' . $f($y + $ry)
+                . ' A' . $f($rx) . ',' . $f($ry) . ' 0 0 1 ' . $f($x + $rx) . ',' . $f($y)
+                . ' L' . $f($x2 - $rx) . ',' . $f($y)
+                . ' A' . $f($rx) . ',' . $f($ry) . ' 0 0 1 ' . $f($x2) . ',' . $f($y + $ry)
+                . ' L' . $f($x2) . ',' . $f($y2)
+                . ' Z',
+            'bottom' => 'M' . $f($x) . ',' . $f($y)
+                . ' L' . $f($x2) . ',' . $f($y)
+                . ' L' . $f($x2) . ',' . $f($y2 - $ry)
+                . ' A' . $f($rx) . ',' . $f($ry) . ' 0 0 1 ' . $f($x2 - $rx) . ',' . $f($y2)
+                . ' L' . $f($x + $rx) . ',' . $f($y2)
+                . ' A' . $f($rx) . ',' . $f($ry) . ' 0 0 1 ' . $f($x) . ',' . $f($y2 - $ry)
+                . ' Z',
+            'right' => 'M' . $f($x) . ',' . $f($y)
+                . ' L' . $f($x2 - $rx) . ',' . $f($y)
+                . ' A' . $f($rx) . ',' . $f($ry) . ' 0 0 1 ' . $f($x2) . ',' . $f($y + $ry)
+                . ' L' . $f($x2) . ',' . $f($y2 - $ry)
+                . ' A' . $f($rx) . ',' . $f($ry) . ' 0 0 1 ' . $f($x2 - $rx) . ',' . $f($y2)
+                . ' L' . $f($x) . ',' . $f($y2)
+                . ' Z',
+            'left' => 'M' . $f($x2) . ',' . $f($y)
+                . ' L' . $f($x2) . ',' . $f($y2)
+                . ' L' . $f($x + $rx) . ',' . $f($y2)
+                . ' A' . $f($rx) . ',' . $f($ry) . ' 0 0 1 ' . $f($x) . ',' . $f($y2 - $ry)
+                . ' L' . $f($x) . ',' . $f($y + $ry)
+                . ' A' . $f($rx) . ',' . $f($ry) . ' 0 0 1 ' . $f($x + $rx) . ',' . $f($y)
+                . ' Z',
+            default => throw new \LogicException("Unknown rounded side: {$side}"),
+        };
+    }
+
+    /**
      * Pie/donut slice as a single path "d". Angles are in radians, measured
      * clockwise from the 12 o'clock position. innerRadius=0 produces a pie wedge;
      * non-zero produces a donut ring segment.
